@@ -2,4 +2,6 @@ opencv-python
 numpy
 matplotlib
 pandas
+scikit-image 
+pillow 
 pytesseract
