@@ -13,7 +13,7 @@ class ROICoordinates:
 
 class SettingMode:
     def __init__(self, camera_source: str | int = 0, fps: int = 30, window_name: str = 'setting_mode', 
-                 env_path: str = '.env', image_template: str = None) -> None:
+                 env_path: str = None, image_template: str = None) -> None:
         """Initialize the SettingMode with camera and display parameters.
 
         Args:
@@ -87,21 +87,28 @@ class SettingMode:
     def __save_roi(self, roi: ROICoordinates, file_path: str) -> None:
         """Save ROI coordinates to an env file."""
         logging.debug(f"Saving ROI coordinates to file: {file_path}")
-        with open(file_path, 'w') as f:
-            f.write(f"# ROI\nX={roi.x}\nY={roi.y}\nWIDTH={roi.width}\nHEIGHT={roi.height}\n")
-            logging.info(f"ROI coordinates saved to {file_path}")
+        if roi.height > 0 and roi.width > 0:
+            with open(file_path, 'w') as f:
+                f.write(f"# ROI\nX={roi.x}\nY={roi.y}\nWIDTH={roi.width}\nHEIGHT={roi.height}\n")
+                logging.info(f"ROI coordinates saved to {file_path}")
+        else:
+            logging.error("Failed to save ROI coordinates")
+            logging.warning(f"Width or Height is zero. Please select a valid ROI")
 
     def __save_image_template(self, image_template: str, file_path: str, env_path: str) -> None:
         """Save cropped template to a file."""
         logging.debug(f"Saving image template to file: {file_path}")
-        cv2.imwrite(file_path, image_template, [cv2.IMWRITE_PNG_COMPRESSION, 9])
-        with open(env_path, 'a') as f:
-            f.write(f"# Template Path\nTEMPLATE_PATH={file_path}\n")
-        logging.info(f"Image template saved to {file_path}")
+        if image_template.size > 0:
+            cv2.imwrite(file_path, image_template, [cv2.IMWRITE_PNG_COMPRESSION, 9])
+            with open(env_path, 'a') as f:
+                f.write(f"# Template Path\nTEMPLATE_PATH={file_path}\n")
+            logging.info(f"Image template saved to {file_path}")
+        else:
+            logging.error("Failed to save image template. ")
 
     def _draw_roi(self, window_name='cropped_frame') -> None:
         """Draw ROI rectangle on frame if ROI is set."""
-        if self.roi:
+        if self.roi and self.roi.height > 0 and self.roi.width > 0:
             logging.debug("Drawing ROI rectangle on frame")
             cv2.rectangle(
                 self.frame,
@@ -114,8 +121,9 @@ class SettingMode:
                 self.roi.y:self.roi.y + self.roi.height,
                 self.roi.x:self.roi.x + self.roi.width
             ]
-
             cv2.imshow(window_name, roi_frame)
+        else:
+            logging.debug("No ROI selected")
 
     def _process_frame(self) -> bool:
         """Process a single frame from the camera."""
@@ -149,7 +157,7 @@ class SettingMode:
                 elapsed_time = time.time() - start_time
                 delay = max(0.01, self.frame_delay - elapsed_time)
                 time.sleep(delay)
-                logging.debug(f"Frame processing time: {elapsed_time:.3f}s, delay: {delay:.3f}s")
+                logging.debug(f"Frame processing time: {elapsed_time:.3f}s, delay: {delay:.3f}s, fps: {1/delay:.2f}")
 
         except KeyboardInterrupt:
             logging.info("Setting mode interrupted by user")
@@ -169,9 +177,14 @@ if __name__ == "__main__":
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     args = parser.parse_args()
     
+    logging.basicConfig(
+            format='%(asctime)s - %(message)s', 
+            datefmt='%d-%b-%y %H:%M:%S',
+            level=logging.DEBUG if args.debug else logging.INFO
+    )
+
     try:
-        logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
-        setting_mode = SettingMode(camera_source="data/Relaxing_highway_traffic.mp4", image_template="template/large_milk_carton_template.png")
+        setting_mode = SettingMode(camera_source="data/Relaxing_highway_traffic.mp4", env_path="setting.env", image_template="template/large_milk_carton_template.png")
         setting_mode.run()
     except ValueError as e:
         logging.error(f"Failed to initialize SettingMode: {e}")
