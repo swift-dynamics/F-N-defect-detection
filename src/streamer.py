@@ -62,9 +62,9 @@ class CameraStreamer:
                 print("Failed to capture frame")
                 break
             
-            cv2.imshow("Frame", frame)
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                self.stop()
+            # cv2.imshow("Frame", frame)
+            # if cv2.waitKey(1) & 0xFF == ord('q'):
+            #     self.stop()
                 
             if not self.queue.full():
                 self.queue.put(frame)

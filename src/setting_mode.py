@@ -134,7 +134,7 @@ class SettingMode:
             return False
         return True
 
-    def run(self) -> None:
+    async def run(self) -> None:
         """Main loop for running the setting mode."""
         logging.debug("Starting main loop")
         try:

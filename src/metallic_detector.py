@@ -3,12 +3,13 @@ import numpy as np
 import dotenv
 import os
 import time
+import multiprocessing
 from multiprocessing import Process, Queue
 from datetime import datetime
 import logging
 from threading import Thread
 from typing import Tuple, Optional, Union
-from setting_mode import ROICoordinates
+from .setting_mode import ROICoordinates
 
 dotenv.load_dotenv(dotenv_path='./setting.env', override=True)
 
@@ -51,10 +52,14 @@ class MetallicDetector:
     def _setup_camera(self, camera_source) -> None:
         """Initialize and validate camera connection."""
         logging.debug(f"Setting up camera with source: {camera_source}")
-        self.cap = cv2.VideoCapture(camera_source)
-        if not self.cap.isOpened():
-            logging.error("Failed to access camera/video source")
-            raise ValueError("Failed to access camera/video source")
+        if isinstance(camera_source, str) or isinstance(camera_source, int):
+            self.cap = cv2.VideoCapture(camera_source)
+            if not self.cap.isOpened():
+                logging.error("Failed to access camera/video source")
+                raise ValueError("Failed to access camera/video source")
+        else:
+            self.cap: Queue = camera_source
+            logging.info("Using provided frame queue for camera source")
 
     def _init_template_image(self, template_image: str) -> None:
         """Initialize the template image for comparison."""
@@ -127,15 +132,26 @@ class MetallicDetector:
         while True:
             start_time = time.time()
 
-            ret, frame = self.cap.read()
-            if not ret:
-                logging.error("Failed to read frame from camera")
-                break
+            if type(self.cap) is multiprocessing.queues.Queue:
+                try:
+                    frame = self.cap.get()
+                    if frame is None:
+                        logging.error("Failed to read frame from queue")
+                        break
+                except:
+                    time.sleep(0.1)
+                    continue
+            else:
+                print(type(self.cap))
+                ret, frame = self.cap.read()
+                if not ret:
+                    logging.error("Failed to read frame from camera")
+                    break
 
             frame, roi_frame = self._draw_roi(frame)
             if roi_frame is not None:
                 similarity = self.detect_metallic(roi_frame)
-                cv2.putText(frame, f"Similarity: {similarity:.2f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
+                cv2.putText(frame, f"Defected: {similarity:.2f}", (self.roi.x-self.roi.width//2, self.roi.y-10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
                 self.t = Thread(target=self._alert_process, args=(frame, similarity))
                 self.t.daemon = True
                 self.t.start()
