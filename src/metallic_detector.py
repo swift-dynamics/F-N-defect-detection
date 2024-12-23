@@ -3,10 +3,11 @@ import numpy as np
 import dotenv
 import os
 import time
+from multiprocessing import Process, Queue
 from datetime import datetime
 import logging
 from threading import Thread
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Union
 from setting_mode import ROICoordinates
 
 dotenv.load_dotenv(dotenv_path='./setting.env', override=True)
@@ -19,9 +20,9 @@ ROI_H = int(os.getenv('HEIGHT', 0))
 TEMPLATE_IMAGE = os.getenv('TEMPLATE_PATH', None)
 
 class MetallicDetector:
-    def __init__(self, camera_source: str | int, theshold: int | float = 0.5, fps=30) -> None:
+    def __init__(self, camera_source: Union[str, int, Queue], threshold: Union[int, float] = 0.5, fps=30) -> None:
         """Initialize the MetallicDetector with camera and ROI parameters."""
-        logging.debug(f"Initializing MetallicDetector with camera_source={camera_source}, threshold={theshold}")
+        logging.debug(f"Initializing MetallicDetector with camera_source={camera_source}, threshold={threshold}")
         self._setup_camera(camera_source)
         self._setup_display_parameters(fps)
         self._init_template_image(TEMPLATE_IMAGE)
@@ -31,7 +32,7 @@ class MetallicDetector:
         # To reduce false positives
         self.no_same_alerts = 0
         self.alert_debounce = 10
-        self.threshold = theshold # Threshold for similarity
+        self.threshold = threshold # Threshold for similarity
         self.no_of_defects = 0 # Number of defects detected
         # Make directory to save defected images
         os.makedirs('defected_images', exist_ok=True)
@@ -47,7 +48,7 @@ class MetallicDetector:
         cv2.namedWindow(self.main_disp, cv2.WINDOW_NORMAL)
         cv2.namedWindow(self.sub_disp, cv2.WINDOW_NORMAL)
 
-    def _setup_camera(self, camera_source: str | int) -> None:
+    def _setup_camera(self, camera_source) -> None:
         """Initialize and validate camera connection."""
         logging.debug(f"Setting up camera with source: {camera_source}")
         self.cap = cv2.VideoCapture(camera_source)
@@ -172,8 +173,7 @@ if __name__ == "__main__":
     )
     
     try:
-        
-        detector = MetallicDetector(camera_source="data/Relaxing_highway_traffic.mp4", theshold=0.75, fps=30)
+        detector = MetallicDetector(camera_source="data/Relaxing_highway_traffic.mp4", threshold=0.75, fps=30)
         detector.run()
     except Exception as e:
         logging.error(f"Unexpected error occurred: {e}")
