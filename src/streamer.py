@@ -5,6 +5,8 @@ from typing import Optional
 from contextlib import contextmanager
 import logging
 
+logger = logging.getLogger(__name__)
+
 class CameraStreamer:
     """
     A class to handle camera streaming operations.
@@ -29,7 +31,7 @@ class CameraStreamer:
         """
         self.queue = queue
         self.fps = fps
-        self._frame_delay = 1 / fps
+        self._frame_delay = 1.0 / fps
         self._running = False
         self._cap: Optional[cv2.VideoCapture] = None
         logging.info("Initializing CameraStreamer with FPS: %d", fps)
@@ -117,17 +119,6 @@ def start_stream(queue: Queue, camera_source, fps: int = 30):
         raise
     
 if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser(description="Camera Streamer")
-    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
-    args = parser.parse_args()
-    
-    logging.basicConfig(
-            format='%(asctime)s - %(message)s', 
-            datefmt='%d-%b-%y %H:%M:%S',
-            level=logging.DEBUG if args.debug else logging.INFO
-    )
-
     FRAME_QUEUE = Queue(maxsize=10)
     CAMERA_SOURCE = "data/Relaxing_highway_traffic.mp4"
     FPS = 30

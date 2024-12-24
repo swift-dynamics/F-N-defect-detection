@@ -3,6 +3,7 @@ import numpy as np
 import dotenv
 import os
 import time
+from datetime import datetime, timedelta
 import multiprocessing
 from multiprocessing import Process, Queue
 from datetime import datetime
@@ -10,6 +11,8 @@ import logging
 from threading import Thread
 from typing import Tuple, Optional, Union
 from .setting_mode import ROICoordinates
+
+logger = logging.getLogger(__name__)
 
 dotenv.load_dotenv(dotenv_path='./setting.env', override=True)
 
@@ -21,65 +24,70 @@ ROI_H = int(os.getenv('HEIGHT', 0))
 TEMPLATE_IMAGE = os.getenv('TEMPLATE_PATH', None)
 
 class MetallicDetector:
-    def __init__(self, camera_source: Union[str, int, Queue], threshold: Union[int, float] = 0.5, fps=30) -> None:
+    def __init__(self, camera_source: Union[str, int, Queue], threshold: Union[int, float] = 0.5, fps=30, show_main: bool = True, show_process: bool = True) -> None:
         """Initialize the MetallicDetector with camera and ROI parameters."""
-        logging.debug(f"Initializing MetallicDetector with camera_source={camera_source}, threshold={threshold}")
+        logger.debug(f"Initializing MetallicDetector with camera_source={camera_source}, threshold={threshold}")
         self._setup_camera(camera_source)
-        self._setup_display_parameters(fps)
+        self._setup_display_parameters(fps, show_main, show_process)
         self._init_template_image(TEMPLATE_IMAGE)
         self.roi: Optional[ROICoordinates] = ROICoordinates(ROI_X, ROI_Y, ROI_W, ROI_H)
+        
         # Alert parameters
-        self.alerted = False
-        # To reduce false positives
-        self.no_same_alerts = 0
-        self.alert_debounce = 10
         self.threshold = threshold # Threshold for similarity
-        self.no_of_defects = 0 # Number of defects detected
+        self.alerted = False
+        self.last_alert_time = datetime.min
+        self.alert_debounce = int(os.getenv('ALERT_DEBOUNCE_SECONDS', 10))
         # Make directory to save defected images
         os.makedirs('defected_images', exist_ok=True)
-        self.root_dir = os.path.join(os.getcwd(), 'defected_images')
-        logging.info("MetallicDetector initialized successfully")
+        self.root_dir = os.path.join(os.getcwd(), 'milk_carton_defected_images')
 
-    def _setup_display_parameters(self, fps: int) -> None:
+        logger.info("MetallicDetector initialized successfully")
+
+    def _setup_display_parameters(self, fps: int, show_main, show_process) -> None:
         """Setup display window and frame rate parameters."""
-        logging.debug(f"Setting up display parameters with fps: {fps}")
+        logger.debug(f"Setting up display parameters with fps: {fps}")
         self.frame_delay = 1.0 / fps
-        self.main_disp = 'Metallic Detector'
-        self.sub_disp = 'ROI Frame'
-        cv2.namedWindow(self.main_disp, cv2.WINDOW_NORMAL)
-        cv2.namedWindow(self.sub_disp, cv2.WINDOW_NORMAL)
+        self.main_disp = 'Metallic-main-display'
+        self.sub_disp = 'Metallic-process-display'
+        self.show_main = show_main
+        self.show_process = show_process
+
+        if self.show_main:
+            cv2.namedWindow(self.main_disp, cv2.WINDOW_NORMAL)
+        if self.show_process:
+            cv2.namedWindow(self.sub_disp, cv2.WINDOW_NORMAL)
 
     def _setup_camera(self, camera_source) -> None:
         """Initialize and validate camera connection."""
-        logging.debug(f"Setting up camera with source: {camera_source}")
+        logger.debug(f"Setting up camera with source: {camera_source}")
         if isinstance(camera_source, str) or isinstance(camera_source, int):
             self.cap = cv2.VideoCapture(camera_source)
             if not self.cap.isOpened():
-                logging.error("Failed to access camera/video source")
+                logger.error("Failed to access camera/video source")
                 raise ValueError("Failed to access camera/video source")
         else:
             self.cap: Queue = camera_source
-            logging.info("Using provided frame queue for camera source")
+            logger.info("Using provided frame queue for camera source")
 
     def _init_template_image(self, template_image: str) -> None:
         """Initialize the template image for comparison."""
         if template_image:
-            logging.debug(f"Loading template image from: {template_image}")
+            logger.debug(f"Loading template image from: {template_image}")
             self.template_image = cv2.imread(template_image)
             if self.template_image is not None:
                 self.hist_template_image = self._histogramize(self.template_image)
-                logging.info("Template image loaded and histogramized")
+                logger.info("Template image loaded and histogramized")
             else:
-                logging.error("Failed to load template image")
+                logger.error("Failed to load template image")
                 self.template_image = None
         else:
-            logging.info("No template image provided")
+            logger.info("No template image provided")
             self.template_image = None
 
     def _draw_roi(self, frame: np.ndarray) -> Tuple[np.ndarray, Optional[np.ndarray]]:
         """Draw ROI rectangle on frame if ROI is set."""
         if self.roi:
-            logging.debug(f"Drawing ROI: {self.roi}")
+            logger.debug(f"Drawing ROI: {self.roi}")
             roi_frame = frame[
                 self.roi.y:self.roi.y + self.roi.height,
                 self.roi.x:self.roi.x + self.roi.width
@@ -100,98 +108,115 @@ class MetallicDetector:
         hsv_image[:, :, 2] = cv2.equalizeHist(hsv_image[:, :, 2])
         hist_image = cv2.calcHist([hsv_image], [0, 1], None, [180, 256], [0, 180, 0, 256])
         hist_image /= hist_image.sum()  # Normalize the histogram
-        logging.debug("Generated histogram for ROI frame")
+        logger.debug("Generated histogram for ROI frame")
         return hist_image
 
     def detect_metallic(self, roi_frame: np.ndarray) -> float:
         """Detect metallic objects in the ROI frame."""
         roi_hist = self._histogramize(roi_frame)
         similarity = cv2.compareHist(self.hist_template_image, roi_hist, cv2.HISTCMP_CORREL)
-        logging.debug(f"Calculated similarity: {similarity:.2f}")
+        logger.debug(f"Calculated similarity: {similarity:.2f}")
         return similarity
 
     def _alert_process(self, frame: np.ndarray, similarity: float, info="metallic_defected") -> None:
-        """Alert the user if metallic object is detected."""
+        """Process the extracted text and take appropriate action."""
+        current_time = datetime.now()
         if similarity > self.threshold:
-            self.no_same_alerts += 1
-            if self.no_same_alerts > self.alert_debounce and not self.alerted:
-                # Reset alert debounce
+            if not self.alerted or (current_time - self.last_alert_time > timedelta(seconds=self.alert_debounce)):
+                # Trigger alert
                 self.alerted = True
-                self.no_same_alerts = 0
-                logging.info(f"Metallic object detected! Similarity: {similarity:.2f}")
-                self.no_of_defects += 1
-                # Save the defected image
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
-                defect_image_path = f"{self.root_dir}/{timestamp}_{info}.jpg"
-                cv2.imwrite(defect_image_path, frame, [cv2.IMWRITE_JPEG_QUALITY, 95])
-                logging.info(f"Defected image saved to: {defect_image_path}")
+                self.last_alert_time = current_time
 
+                # Save defected image
+                timestamp = current_time.strftime("%Y%m%d_%H%M%S_%f")[:-3]
+                defect_image_path = os.path.join(self.root_dir, f"{timestamp}_{info}.jpg")
+                os.makedirs(self.root_dir, exist_ok=True)
+                cv2.imwrite(defect_image_path, frame, [cv2.IMWRITE_JPEG_QUALITY, 95])
+                logger.info(f"Text image saved to: {defect_image_path}")
+            else:
+                logger.debug("Alert suppressed due to debounce logic.")
+        else:
+            logger.debug("No defect detected.")
+
+    def get_frame(self):
+        """
+        Retrieve a frame either from the Queue or directly from the webcam.
+        """
+        if type(self.cap) is cv2.VideoCapture:
+            ret, frame = self.cap.read()
+            if not ret:
+                logger.error("Failed to read frame from camera")
+                return None
+            return frame
+        else:
+            if not self.cap.empty():
+                frame = self.cap.get()
+                logger.debug("Retrieved frame from queue.")
+                return frame
+            else:
+                logger.warning("Frame queue is empty.")
+                time.sleep(0.1)
+                return np.zeros_like(np.array([0, 0, 0]))  # Return a dummy frame to keep the process running
+            
     def run(self) -> None:
         """Process frames to detect metallic objects."""
-        logging.info("Starting metallic detection")
+        logger.info("Starting metallic detection")
         while True:
             start_time = time.time()
 
-            if type(self.cap) is multiprocessing.queues.Queue:
+            if type(self.cap) is cv2.VideoCapture:
+                ret, frame = self.cap.read()
+                if not ret:
+                    logger.error("Failed to read frame from camera")
+                    break
+            else:
                 try:
                     frame = self.cap.get()
                     if frame is None:
-                        logging.error("Failed to read frame from queue")
+                        logger.error("Failed to read frame from queue")
                         break
                 except:
                     time.sleep(0.1)
                     continue
-            else:
-                print(type(self.cap))
-                ret, frame = self.cap.read()
-                if not ret:
-                    logging.error("Failed to read frame from camera")
-                    break
 
             frame, roi_frame = self._draw_roi(frame)
             if roi_frame is not None:
                 similarity = self.detect_metallic(roi_frame)
                 cv2.putText(frame, f"Defected: {similarity:.2f}", (self.roi.x-self.roi.width//2, self.roi.y-10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
+                
                 self.t = Thread(target=self._alert_process, args=(frame, similarity))
-                self.t.daemon = True
+                # self.t.daemon = True
                 self.t.start()
                 # self._alert_process(roi_frame, similarity)
-                cv2.imshow(self.sub_disp, roi_frame)
+                if self.show_process:
+                    cv2.imshow(self.sub_disp, roi_frame)
 
-            cv2.imshow(self.main_disp, frame)
+            if self.show_main:
+                cv2.imshow(self.main_disp, frame)
+                
             if cv2.waitKey(1) & 0xFF == ord('q'):
-                logging.info("User exited detection loop via 'q' key")
+                logger.info("User exited detection loop via 'q' key")
                 break
 
             # Control frame rate
             elapsed_time = time.time() - start_time
-            delay = max(0.01, self.frame_delay - elapsed_time)
+            delay = max(0.025, self.frame_delay - elapsed_time)
             time.sleep(delay)
-            logging.debug(f"Frame processing time: {elapsed_time:.3f}s, delay: {delay:.3f}s. fps: {1/delay:.2f}")
+            logger.debug(f"Frame processing time: {elapsed_time:.3f}s, delay: {delay:.3f}s. fps: {1/delay:.2f}")
         
     def cleanup(self) -> None:
         """Release resources and close windows."""
-        logging.info("Cleaning up resources")
+        logger.info("Cleaning up resources")
         self.t.join()
-        self.cap.release()
+        if type(self.cap) is cv2.VideoCapture:
+            self.cap.release()
         cv2.destroyAllWindows()
 
-if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser(description="Setting Mode")
-    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
-    args = parser.parse_args()
-
-    logging.basicConfig(
-            format='%(asctime)s - %(message)s', 
-            datefmt='%d-%b-%y %H:%M:%S',
-            level=logging.DEBUG if args.debug else logging.INFO
-    )
-    
+if __name__ == "__main__":    
     try:
         detector = MetallicDetector(camera_source="data/Relaxing_highway_traffic.mp4", threshold=0.75, fps=30)
         detector.run()
     except Exception as e:
-        logging.error(f"Unexpected error occurred: {e}")
+        logger.error(f"Unexpected error occurred: {e}")
     finally:
         detector.cleanup()
