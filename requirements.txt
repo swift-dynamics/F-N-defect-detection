@@ -7,3 +7,4 @@ scikit-image
 pillow 
 pytesseract
 python-dotenv
+easyocr
