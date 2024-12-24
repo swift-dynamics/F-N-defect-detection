@@ -4,8 +4,7 @@ import dotenv
 import os
 import time
 from datetime import datetime, timedelta
-import multiprocessing
-from multiprocessing import Process, Queue
+from multiprocessing import Queue
 from datetime import datetime
 import logging
 from threading import Thread
@@ -27,6 +26,8 @@ class MetallicDetector:
     def __init__(self, camera_source: Union[str, int, Queue], threshold: Union[int, float] = 0.5, fps=30, show_main: bool = True, show_process: bool = True) -> None:
         """Initialize the MetallicDetector with camera and ROI parameters."""
         logger.debug(f"Initializing MetallicDetector with camera_source={camera_source}, threshold={threshold}")
+        self.fps = fps
+        self.exposure = 0
         self._setup_camera(camera_source)
         self._setup_display_parameters(fps, show_main, show_process)
         self._init_template_image(TEMPLATE_IMAGE)
@@ -60,14 +61,34 @@ class MetallicDetector:
     def _setup_camera(self, camera_source) -> None:
         """Initialize and validate camera connection."""
         logger.debug(f"Setting up camera with source: {camera_source}")
+        
         if isinstance(camera_source, str) or isinstance(camera_source, int):
             self.cap = cv2.VideoCapture(camera_source)
+
             if not self.cap.isOpened():
-                logger.error("Failed to access camera/video source")
-                raise ValueError("Failed to access camera/video source")
+                logger.error("Cannot open camera source: %s", camera_source)
+                raise ValueError(f"Cannot open camera source: {camera_source}")
+            
+            self.cap.set(cv2.CAP_PROP_FPS, self.fps)
+            self.cap.set(cv2.CAP_PROP_EXPOSURE, self.exposure)  # Set initial exposure
+
         else:
             self.cap: Queue = camera_source
             logger.info("Using provided frame queue for camera source")
+
+    def adjust_exposure(self, change: int):
+        """
+        Adjust the camera exposure dynamically.
+
+        Args:
+            change (int): Amount to adjust the exposure by (positive or negative).
+        """
+        self.exposure += change
+        # Clamp exposure to a valid range (-13 to 0 for most cameras)
+        self.exposure = max(-13, min(0, self.exposure))
+        if self.cap:
+            self.cap.set(cv2.CAP_PROP_EXPOSURE, self.exposure)
+            logging.info("Exposure adjusted to: %d", self.exposure)
 
     def _init_template_image(self, template_image: str) -> None:
         """Initialize the template image for comparison."""
@@ -193,10 +214,15 @@ class MetallicDetector:
 
             if self.show_main:
                 cv2.imshow(self.main_disp, frame)
-                
-            if cv2.waitKey(1) & 0xFF == ord('q'):
+
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord('q'):
                 logger.info("User exited detection loop via 'q' key")
                 break
+            elif key == ord('w'):  # Arrow Up Key
+                self.adjust_exposure(1)  # Increase exposure
+            elif key == ord('s'):  # Arrow Down Key
+                self.adjust_exposure(-1)  # Decrease exposure
 
             # Control frame rate
             elapsed_time = time.time() - start_time
