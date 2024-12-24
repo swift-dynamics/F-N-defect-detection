@@ -1,92 +1,85 @@
 from multiprocessing import Process, Queue
-from typing import Optional
-import cv2
-import signal
+import time
+import logging
+import os
 import sys
-
+import signal
+import dotenv
 from src.metallic_detector import MetallicDetector
 from src.streamer import CameraStreamer
-from src.ocr_exp_date import ExtractText
 
-def signal_handler(signum, frame):
-    """Handle system signals for graceful shutdown."""
-    print("\nSignal received. Initiating shutdown...")
-    sys.exit(0)
+dotenv.load_dotenv(override=True)
 
-def start_camera(frame_queue: Queue, camera_source: str) -> None:
-    """Start the camera streaming process.
-    
-    Args:
-        frame_queue: Multiprocessing queue for frame storage
-        camera_source: Path to video file or camera index
-    """
+CAMERA_SOURCE = os.getenv('CAMERA_SOURCE', 0)
+FPS = os.getenv('FPS', 30)
+THRESHOLD = os.getenv('THRESHOLD', 0.5)
+SETTING_ENV_PATH = os.getenv('SETTING_ENV_PATH', None)
+IMAGE_TEMPLATE = os.getenv('IMAGE_TEMPLATE', None)
+FRAME_QUEUE = Queue(maxsize=10)
+
+def start_stream(queue: Queue, camera_source, fps: int = 30):
     try:
-        streamer = CameraStreamer(frame_queue, camera_source)
+        streamer = CameraStreamer(queue, camera_source, fps)
         streamer.start_stream()
     except Exception as e:
-        print(f"Error in camera stream: {e}")
-    finally:
-        if 'streamer' in locals():
-            streamer.stop()
+        logging.error(f"Streamer process failed: {e}", exc_info=True)
+        raise
 
-def main():
-    """Main function to orchestrate the detection system."""
-    # Constants
-    FRAME_QUEUE_SIZE = 10
-    CONFIDENCE_THRESHOLD = 0.7
-    FPS_LIMIT = 30
-    SOURCE = "data/Relaxing_highway_traffic.mp4"
-
-    # Initialize shared queue for frames
-    frame_queue = Queue(maxsize=FRAME_QUEUE_SIZE)
-    processes = []
-
+def milk_corton_detector(queue: Queue, threshold: float = 0.5, fps: int = 30):
     try:
-        # Set up signal handlers
-        signal.signal(signal.SIGINT, signal_handler)
-        signal.signal(signal.SIGTERM, signal_handler)
-
-        # Initialize camera stream process
-        camera_process = Process(
-            target=start_camera,
-            args=(frame_queue, SOURCE),
-            name="CameraProcess"
-        )
-        processes.append(camera_process)
-
-        # Initialize Metallic Detector process
-        detector_process = Process(
-            target=MetallicDetector,
-            args=(frame_queue, CONFIDENCE_THRESHOLD, FPS_LIMIT),
-            name="DetectorProcess"
-        )
-        processes.append(detector_process)
-
-        # Start all processes
-        for process in processes:
-            process.start()
-            print(f"Started process: {process.name}")
-
-        # Wait for processes to complete
-        for process in processes:
-            process.join()
-
+        detector = MetallicDetector(queue, threshold, fps)
+        detector.run()
     except Exception as e:
-        print(f"Error in main process: {e}")
-    finally:
-        # Cleanup
-        for process in processes:
-            if process.is_alive():
-                print(f"Terminating process: {process.name}")
-                process.terminate()
-                process.join()
-        
-        # Clear the queue
-        while not frame_queue.empty():
-            try:
-                frame_queue.get_nowait()
-            except:
-                pass
+        logging.error(f"Detector process failed: {e}", exc_info=True)
+        raise
+
+def terminate_processes(processes):
+    for process in processes:
+        if process.is_alive():
+            process.terminate()
+            process.join()
+        logging.info(f"Terminated {process.name} with exit code {process.exitcode}")
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    parser = argparse.ArgumentParser(description="Setting Mode")
+    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
+    parser.add_argument("--setting", action="store_true", help="Enable Setting Mode")
+    args = parser.parse_args()
+
+    logging.basicConfig(
+        format='%(asctime)s - %(message)s',
+        datefmt='%d-%b-%y %H:%M:%S',
+        level=logging.DEBUG if args.debug else logging.INFO
+    )
+    # If setting mode is enabled, run the setting mode
+    if args.setting:
+        from src.setting_mode import SettingMode
+        setting_mode = SettingMode(camera_source=CAMERA_SOURCE, fps=FPS, env_path=SETTING_ENV_PATH, image_template=IMAGE_TEMPLATE)
+        setting_mode.run()
+        sys.exit(0)
+
+    processes = []
+    try:
+        # Initialize and start processes
+        start_stream_process = Process(target=start_stream, args=(FRAME_QUEUE, CAMERA_SOURCE, FPS), name='start_stream_process')
+        milk_corton_detector_process = Process(target=milk_corton_detector, args=(FRAME_QUEUE, THRESHOLD, FPS), name='milk_corton_detector_process')
+        
+        processes.extend([start_stream_process, milk_corton_detector_process])
+        for process in processes:
+            process.start()
+            logging.info(f"Started {process.name}")
+
+        # Wait for termination signal
+        signal.signal(signal.SIGINT, lambda sig, frame: terminate_processes(processes))
+        signal.signal(signal.SIGTERM, lambda sig, frame: terminate_processes(processes))
+
+        while any(process.is_alive() for process in processes):
+            time.sleep(1)
+
+    except Exception as e:
+        logging.error(f"Main process encountered an error: {e}", exc_info=True)
+        terminate_processes(processes)
+    finally:
+        terminate_processes(processes)
+        sys.exit(0)

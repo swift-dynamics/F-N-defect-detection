@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Tuple, Optional
+from typing import Optional
 import time
 import cv2
 import logging
@@ -29,8 +29,12 @@ class SettingMode:
         self._setup_camera(camera_source)
         self._setup_display_parameters(fps)
         self.roi: Optional[ROICoordinates] = None
-        self.env_path = env_path
+        self.env_path = env_path 
         self.image_template = image_template
+
+        if env_path is None or image_template is None:
+            logging.warning("Environment path or image template not provided. ROI selection will not be saved.")
+            raise ValueError("Environment path or image template not provided.")
         
     def _setup_camera(self, camera_source: str | int) -> None:
         """Initialize and validate camera connection."""
@@ -134,7 +138,7 @@ class SettingMode:
             return False
         return True
 
-    async def run(self) -> None:
+    def run(self) -> None:
         """Main loop for running the setting mode."""
         logging.debug("Starting main loop")
         try:
