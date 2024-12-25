@@ -9,8 +9,8 @@ import numpy as np
 import dotenv
 from .setting_mode import ROICoordinates
 
-dotenv.load_dotenv(dotenv_path='./.env',override=True)
-dotenv.load_dotenv(dotenv_path='./environments/setting.env', override=True)
+dotenv.load_dotenv(dotenv_path='./.env', override=True)
+# dotenv.load_dotenv(dotenv_path='./setting.env', override=True)
 
 # Load environment variables
 ROI_X = int(os.getenv('X', 0))

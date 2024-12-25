@@ -3,6 +3,8 @@ from typing import Optional
 import time
 import cv2
 import logging
+from filelock import FileLock
+from dotenv import dotenv_values
 
 @dataclass
 class ROICoordinates:
@@ -79,26 +81,57 @@ class SettingMode:
                 self.__save_template_file(roi_frame, self.template_file, self.env_path)
             
     def __save_roi(self, roi: ROICoordinates, file_path: str) -> None:
-        """Save ROI coordinates to an env file."""
+        """Save ROI coordinates to an env file, preserving static values, using FileLock."""
         logging.debug(f"Saving ROI coordinates to file: {file_path}")
-        if roi.height > 0 and roi.width > 0:
-            with open(file_path, 'w') as f:
-                f.write(f"# ROI\nX={roi.x}\nY={roi.y}\nWIDTH={roi.width}\nHEIGHT={roi.height}\n")
-                logging.info(f"ROI coordinates saved to {file_path}")
-        else:
-            logging.error("Failed to save ROI coordinates")
-            logging.warning(f"Width or Height is zero. Please select a valid ROI")
+        
+        lock_path = f"{file_path}.lock"  # Create a lock file path
+        lock = FileLock(lock_path)  # Create a FileLock instance
 
+        with lock:  # Acquire the lock
+            # Load existing static values from the .env file
+            existing_values = dotenv_values(file_path)
+            
+            # Update ROI values
+            existing_values.update({
+                "X": roi.x,
+                "Y": roi.y,
+                "WIDTH": roi.width,
+                "HEIGHT": roi.height,
+            })
+
+            # Write back all values to the .env file
+            with open(file_path, 'w') as f:
+                for key, value in existing_values.items():
+                    f.write(f"{key}={value}\n")
+
+            logging.info(f"ROI coordinates merged and saved to {file_path}")
+    
     def __save_template_file(self, template_file: str, file_path: str, env_path: str) -> None:
-        """Save cropped template to a file."""
+        """Save cropped template to a file, preserving static values, using FileLock."""
         logging.debug(f"Saving image template to file: {file_path}")
-        if template_file.size > 0:
-            cv2.imwrite(file_path, template_file, [cv2.IMWRITE_PNG_COMPRESSION, 9])
-            with open(env_path, 'a') as f:
-                f.write(f"# Template Path\nTEMPLATE_PATH={file_path}\n")
-            logging.info(f"Image template saved to {file_path}")
-        else:
-            logging.error("Failed to save image template. ")
+        
+        lock_path = f"{env_path}.lock"  # Create a lock file path for the environment file
+        lock = FileLock(lock_path)  # Create a FileLock instance
+
+        with lock:  # Acquire the lock
+            # Load existing static values from the .env file
+            existing_values = dotenv_values(env_path)
+            
+            # Add the template path
+            existing_values["TEMPLATE_PATH"] = file_path
+
+            # Save the cropped template to the specified file
+            if template_file.size > 0:
+                cv2.imwrite(file_path, template_file, [cv2.IMWRITE_PNG_COMPRESSION, 9])
+                
+                # Write back all values to the .env file
+                with open(env_path, 'w') as f:
+                    for key, value in existing_values.items():
+                        f.write(f"{key}={value}\n")
+                
+                logging.info(f"Image template saved to {file_path}")
+            else:
+                logging.error("Failed to save image template.")
 
     def _draw_roi(self, window_name='cropped_frame') -> None:
         """Draw ROI rectangle on frame if ROI is set."""

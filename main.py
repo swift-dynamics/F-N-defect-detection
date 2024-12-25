@@ -11,7 +11,7 @@ from src.streamer import CameraStreamer
 from src.ocr_exp_date import TextExtractor
 from src.setting_mode import SettingMode
 
-dotenv.load_dotenv(dotenv_path="./.env", override=True)
+dotenv.load_dotenv(dotenv_path=".env", override=True)
 # dotenv.load_dotenv(dotenv_path='./setting.env', override=True)
 
 # Configuration
@@ -19,10 +19,10 @@ CAMERA_SOURCE = os.getenv('CAMERA_SOURCE', "data/Relaxing_highway_traffic.mp4")
 FPS = int(os.getenv('FPS', 30))
 METALLIC_ALERT_DIRECTORY = str(os.getenv("METALLIC_DEFECTED_ALERT_DIRECTORY", "metallic_defected_images"))
 THRESHOLD = float(os.getenv('THRESHOLD', 0.5))
-TEMPLATE_IMAGE = str(os.getenv('TEMPLATE_IMAGE', None))
 OCR_ALERT_DIRECTORY = str(os.getenv('TEXT_DEFECTED_ALERT_DIRECTORY', "data/alerts"))
 TEXT_THRSHOLD = int(os.getenv('TEXT_THRSHOLD', 3))
-SETTING_ENV_PATH = str(os.getenv('SETTING_ENV_PATH', None))
+TEMPLATE_IMAGE = str(os.getenv('TEMPLATE_PATH', None))
+# SETTING_ENV_PATH = str(os.getenv('SETTING_ENV_PATH', None))
 QSIZE = int(os.getenv('QSIZE', 10))
 
 # Argument Parsing
@@ -68,7 +68,7 @@ def start_stream(queue: Queue, camera_source, fps: int = 30):
         logger.error(f"Streamer process failed: {e}", exc_info=True)
         raise
 
-def milk_carton_detector(
+def metallic_detector(
         queue: Queue, 
         threshold: float, 
         fps: int,
@@ -138,7 +138,7 @@ def main():
             setting_mode = SettingMode(
                 camera_source=CAMERA_SOURCE,
                 fps=FPS,
-                env_path=SETTING_ENV_PATH,
+                env_path='.env',
                 template_file=TEMPLATE_IMAGE
             )
             setting_mode.run()
@@ -158,7 +158,7 @@ def main():
         Process(target=start_stream, args=(input_queue, CAMERA_SOURCE, FPS), name='start_stream_process'),
         Process(target=broadcaster, args=(input_queue, output_queues), name='broadcaster_process'),
         Process(
-            target=milk_carton_detector, 
+            target=metallic_detector, 
             args=(
                 output_queue_1, 
                 THRESHOLD, 
