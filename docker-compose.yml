@@ -1,0 +1,50 @@
+services:
+  draw-roi:
+    build: .
+    image: milk_box_defect_detection
+    container_name: draw-roi
+    restart: "no"
+    env_file:
+      - .env
+    environment:
+      - FPS=${FPS}
+      - DISPLAY=${DISPLAY}
+    volumes:
+      - .env:/app/.env
+      - /tmp/.X11-unix:/tmp/.X11-unix
+    command: bash -c "python3 main.py --setting"
+
+  defect-detection:
+    build: .
+    image: milk_box_defect_detection
+    container_name: defect-detection
+    restart: "no"
+    env_file:
+      - .env
+    environment:
+      - FPS=${FPS}
+      - DISPLAY=${DISPLAY}
+    volumes:
+      - .env:/app/.env
+      - /tmp/.X11-unix:/tmp/.X11-unix
+    devices:
+      - /dev/dri:/dev/dri  # If you are using GPU or need access to devices
+    command: bash -c "python3 main.py --main_disp --process_disp"
+    runtime: nvidia  # If using GPU and NVIDIA runtime
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+  # gpu-test:
+  #   image: nvidia/cuda:12.6.3-base-ubuntu24.04
+  #   command: nvidia-smi
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: 1
+  #             capabilities: [gpu]
