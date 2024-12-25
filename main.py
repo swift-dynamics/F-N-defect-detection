@@ -6,13 +6,9 @@ import sys
 import signal
 import dotenv
 import argparse
-from src.metallic_detector import MetallicDetector
-from src.streamer import CameraStreamer
-from src.ocr_exp_date import TextExtractor
-from src.setting_mode import SettingMode
+from src import HistogramComparator, CameraStreamer, MFDEXDInspector, CreateTemplate
 
 dotenv.load_dotenv(override=True)
-# dotenv.load_dotenv(dotenv_path='./setting.env', override=True)
 
 # Configuration
 CAMERA_SOURCE = os.getenv('CAMERA_SOURCE', "data/Relaxing_highway_traffic.mp4")
@@ -22,13 +18,12 @@ THRESHOLD = float(os.getenv('THRESHOLD', 0.5))
 OCR_ALERT_DIRECTORY = str(os.getenv('TEXT_DEFECTED_ALERT_DIRECTORY', "data/alerts"))
 TEXT_THRSHOLD = int(os.getenv('TEXT_THRSHOLD', 3))
 TEMPLATE_IMAGE = str(os.getenv('TEMPLATE_PATH', None))
-# SETTING_ENV_PATH = str(os.getenv('SETTING_ENV_PATH', None))
 QSIZE = int(os.getenv('QSIZE', 10))
 
 # Argument Parsing
 parser = argparse.ArgumentParser(description="Main-program")
 parser.add_argument("--debug", action="store_true", help="Enable debug logging")
-parser.add_argument("--setting", action="store_true", help="Enable Setting Mode")
+parser.add_argument("--setting", action="store_true", help="Enable Template")
 parser.add_argument("--main_disp", action="store_true", help="Enable Main Display")
 parser.add_argument("--process_disp", action="store_true", help="Enable Process Display")
 args = parser.parse_args()
@@ -80,7 +75,7 @@ def metallic_detector(
     ):
     try:
         logger.info("Starting metallic detector process.")
-        detector = MetallicDetector(
+        detector = HistogramComparator(
             source=queue, 
             fps=fps,
             alert_directory=alert_directory,
@@ -95,7 +90,7 @@ def metallic_detector(
         logger.error(f"Metallic detector process failed: {e}", exc_info=True)
         raise
 
-def exp_date_detector(
+def exp_detector(
         queue: Queue, 
         threshold: int, 
         fps: int,
@@ -105,8 +100,8 @@ def exp_date_detector(
         alert_info
     ):
     try:
-        logger.info("Starting exp_date_detector process.")
-        detector = TextExtractor(
+        logger.info("Starting exp_detector process.")
+        detector = MFDEXDInspector(
             source=queue, 
             fps=fps,
             alert_directory=alert_directory,
@@ -117,7 +112,7 @@ def exp_date_detector(
         )
         detector.run()
     except Exception as e:
-        logger.error(f"exp_date_detector process failed: {e}", exc_info=True)
+        logger.error(f"exp_detector process failed: {e}", exc_info=True)
         raise
 
 def terminate_processes(processes):
@@ -135,13 +130,13 @@ def main():
     if args.setting:
         logger.info("Entering setting mode.")
         try:
-            setting_mode = SettingMode(
+            template_creator = CreateTemplate(
                 camera_source=CAMERA_SOURCE,
                 fps=FPS,
                 env_path='.env',
                 template_file=TEMPLATE_IMAGE
             )
-            setting_mode.run()
+            template_creator.run()
         except Exception as e:
             logger.error(f"Setting mode encountered an error: {e}", exc_info=True)
         finally:
@@ -172,7 +167,7 @@ def main():
             name='milk_corton_detector_process'
         ),
         Process(
-            target=exp_date_detector, 
+            target=exp_detector, 
             args=(
                 output_queue_2, 
                 TEXT_THRSHOLD, 
@@ -182,7 +177,7 @@ def main():
                 "OCR-process-display" if args.process_disp else None, 
                 "text-defected"
             ), 
-            name='exp_date_detector_process'
+            name='exp_detector_process'
         ),
     ]
 

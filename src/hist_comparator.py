@@ -7,10 +7,11 @@ import logging
 from threading import Thread
 from typing import Union
 from .video_process_base import VideoProcessBase
+from .alert_process_base import AlertProcessBase
 
 logger = logging.getLogger(__name__)
 
-class MetallicDetector(VideoProcessBase):
+class HistogramComparator(VideoProcessBase, AlertProcessBase):
     def __init__(
         self,
         source: Union[str, int, Queue],
@@ -22,14 +23,16 @@ class MetallicDetector(VideoProcessBase):
         simm_threshold: float = 0.5,
         template_image: str = None
     ):
-        super().__init__(source, fps, main_window, process_window)
+        VideoProcessBase.__init__(self, source, fps, main_window, process_window)
+        AlertProcessBase.__init__(self)
+        
         self.alert_directory = alert_directory
         self.alert_info = alert_info
         self.simm_threshold = simm_threshold
         self.setup_alert(self.alert_directory, self.alert_info)
         self._setup_template(template_image)
 
-        logger.info("------------------------ MetallicDetector initialized ------------------------")
+        logger.info("------------------------ HistogramComparator initialized ------------------------")
         logger.info(f"Alert Directory: {self.alert_directory}")
         logger.info(f"Alert Info: {self.alert_info}")
         logger.info(f"Similarity Threshold: {self.simm_threshold}")
@@ -112,7 +115,7 @@ if __name__ == "__main__":
     THRESHOLD = float(os.getenv('THRESHOLD', 0.5))
     TEMPLATE_IMAGE = str(os.getenv('TEMPLATE_IMAGE', None))
 
-    detector = MetallicDetector(
+    detector = HistogramComparator(
         source=CAMERA_SOURCE, 
         fps=FPS,
         alert_directory=ALERT_DIRECTORY,

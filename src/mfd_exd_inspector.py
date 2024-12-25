@@ -8,10 +8,11 @@ from multiprocessing import Queue
 import easyocr
 from threading import Thread
 from .video_process_base import VideoProcessBase
+from .alert_process_base import AlertProcessBase
 
 logger = logging.getLogger(__name__)
 
-class TextExtractor(VideoProcessBase):
+class MFDEXDInspector(VideoProcessBase, AlertProcessBase):
     def __init__(
         self,
         source: Union[str, int, Queue],
@@ -22,14 +23,16 @@ class TextExtractor(VideoProcessBase):
         alert_directory: str = None,
         text_threshold: int = 3
     ):
-        super().__init__(source, fps, main_window, process_window)
+        VideoProcessBase.__init__(self, source, fps, main_window, process_window)
+        AlertProcessBase.__init__(self)
+        
         self.alert_directory = alert_directory
         self.alert_info = alert_info
         self.text_threshold = text_threshold
         self.setup_alert(self.alert_directory, self.alert_info)
         self.setup_ocr()
 
-        logger.info("------------------------ TextExtractor initialized ------------------------")
+        logger.info("------------------------ MFDEXDInspector initialized ------------------------")
         logger.info(f"Alert Directory: {self.alert_directory}")
         logger.info(f"Alert Info: {self.alert_info}")
         logger.info(f"Text Threshold: {self.text_threshold}")
@@ -100,7 +103,7 @@ if __name__ == "__main__":
     ALERT_DIRECTORY = str(os.getenv('TEXT_DEFECTED_ALERT_DIRECTORY', "data/alerts"))
     TEXT_THRSHOLD = int(os.getenv('TEXT_THRSHOLD', 3))
 
-    text_extractor = TextExtractor(
+    text_extractor = MFDEXDInspector(
         source=CAMERA_SOURCE, 
         fps=FPS,
         alert_directory=ALERT_DIRECTORY,

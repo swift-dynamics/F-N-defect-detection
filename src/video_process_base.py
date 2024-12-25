@@ -7,58 +7,19 @@ from typing import Optional, Union
 import cv2
 import numpy as np
 import dotenv
-from .setting_mode import ROICoordinates
+from .create_template import ROICoordinates
 
 dotenv.load_dotenv(override=True)
-# dotenv.load_dotenv(dotenv_path='./setting.env', override=True)
 
 # Load environment variables
 ROI_X = int(os.getenv('X', 0))
 ROI_Y = int(os.getenv('Y', 0))
 ROI_W = int(os.getenv('WIDTH', 0))
 ROI_H = int(os.getenv('HEIGHT', 0))
-ALERT_DEBOUNCE_SECONDS = int(os.getenv('ALERT_DEBOUNCE_SECONDS', 10))
 
 logger = logging.getLogger(__name__)
-
-class AlertProcessBase:
-    def __init__(self):
-        logger.info("Alert process base initialized.")
-        logger.info(f"Alert debounce seconds: {ALERT_DEBOUNCE_SECONDS}")
-    
-    def setup_alert(self, alert_directory, alert_info) -> None:
-        if alert_directory:
-            self.alert_info = alert_info
-            self.alerted = False
-            self.last_alert_time = datetime.min
-            self.alert_debounce = ALERT_DEBOUNCE_SECONDS
             
-            self.root_dir = os.path.join(os.getcwd(), alert_directory)
-            os.makedirs(self.root_dir, exist_ok=True)
-        else:
-            logger.error("Alert directory is not provided.")
-            raise ValueError("Alert directory is not provided.")
-
-    def trigger_alert(self, frame):
-        """
-        Process the extracted text and take appropriate action.
-        """
-        current_time = datetime.now()
-        if not self.alerted or (current_time - self.last_alert_time > timedelta(seconds=self.alert_debounce)):
-            # Trigger alert
-            self.alerted = True
-            self.last_alert_time = current_time
-
-            # Save defected image
-            timestamp = current_time.strftime("%Y%m%d_%H%M%S_%f")[:-3]
-            defect_image_path = os.path.join(self.root_dir, f"{timestamp}_{self.alert_info}.jpg")
-            cv2.imwrite(defect_image_path, frame, [cv2.IMWRITE_JPEG_QUALITY, 95])
-            
-            logger.info(f"Text image saved to: {defect_image_path}")
-        else:
-            logger.debug("Alert suppressed due to debounce logic.")
-            
-class VideoProcessBase(AlertProcessBase):
+class VideoProcessBase:
     def __init__(
         self, 
         source: Union[str, int, Queue],
@@ -79,9 +40,9 @@ class VideoProcessBase(AlertProcessBase):
         self.process_window = process_window
         
         if self.main_window:
-            cv2.namedWindow(self.main_window, cv2.WINDOW_NORMAL)
+            cv2.namedWindow(self.main_window, cv2.WINDOW_AUTOSIZE)
         if self.process_window:
-            cv2.namedWindow(self.process_window, cv2.WINDOW_NORMAL)
+            cv2.namedWindow(self.process_window, cv2.WINDOW_AUTOSIZE)
             
     def setup_video_capture(self, source) -> None:
         logger.debug(f"Setting up camera with source: {source}")
