@@ -9,5 +9,4 @@ pytesseract
 python-dotenv
 easyocr
 torch
-pydantic
-pydantic_settings
+boto3
