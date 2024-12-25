@@ -78,9 +78,9 @@ class TextExtractor(VideoProcessBase):
                 self.t = Thread(target=self._alert_process, args=(frame, output_text, self.text_threshold))
                 self.t.start()
 
-                if self.main_window and not self.live_view(frame, window_name=self.main_window):
+                if self.main_window and not self.live_view(frame, window_name=self.main_window, color=(255,0,255)):
                     break
-                if self.process_window and not self.live_view(processed_frame, window_name=self.process_window):
+                if self.process_window and not self.live_view(processed_frame, window_name=self.process_window, color=(255,0,255)):
                     break
 
                 # Control frame rate

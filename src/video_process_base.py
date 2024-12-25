@@ -104,11 +104,11 @@ class VideoProcessBase(AlertProcessBase):
             self.cap.set(cv2.CAP_PROP_EXPOSURE, self.exposure)
             logging.info("Exposure adjusted to: %d", self.exposure)
     
-    def live_view(self, frame, window_name, draw_roi: bool = True):
+    def live_view(self, frame, window_name, color: tuple, draw_roi: bool = True):
         """Visualize the extracted text on the frame."""
         if window_name:
             if draw_roi:
-                cv2.rectangle(frame, (self.roi.x, self.roi.y), (self.roi.x + self.roi.width, self.roi.y + self.roi.height), (0, 255, 0), 2)
+                cv2.rectangle(frame, (self.roi.x, self.roi.y), (self.roi.x + self.roi.width, self.roi.y + self.roi.height), color, 2)
             cv2.imshow(window_name, frame)
             key = cv2.waitKey(1) & 0xFF
             if key == ord('q'):

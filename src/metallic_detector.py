@@ -91,9 +91,9 @@ class MetallicDetector(VideoProcessBase):
                 self.t = Thread(target=self._alert_process, args=(roi_frame, similarity, self.simm_threshold))
                 self.t.start()
                 
-                if self.main_window and not self.live_view(frame, window_name=self.main_window):
+                if self.main_window and not self.live_view(frame, window_name=self.main_window, color=(0,255,255)):
                     break
-                if self.process_window and not self.live_view(roi_frame, window_name=self.process_window):
+                if self.process_window and not self.live_view(roi_frame, window_name=self.process_window, color=(0,255,255)):
                     break
 
                 # Control frame rate
