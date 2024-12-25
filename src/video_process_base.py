@@ -9,7 +9,7 @@ import numpy as np
 import dotenv
 from .setting_mode import ROICoordinates
 
-dotenv.load_dotenv(dotenv_path='./.env', override=True)
+dotenv.load_dotenv(override=True)
 # dotenv.load_dotenv(dotenv_path='./setting.env', override=True)
 
 # Load environment variables
@@ -108,7 +108,7 @@ class VideoProcessBase(AlertProcessBase):
         """Visualize the extracted text on the frame."""
         if window_name:
             if draw_roi:
-                cv2.rectangle(frame, (self.roi.x, self.roi.y), (self.roi.x + self.roi.width, self.roi.y + self.roi.height), color, 2)
+                cv2.rectangle(frame, (self.roi.x, self.roi.y), (self.roi.x + self.roi.width, self.roi.y + self.roi.height), color, 1)
             cv2.imshow(window_name, frame)
             key = cv2.waitKey(1) & 0xFF
             if key == ord('q'):

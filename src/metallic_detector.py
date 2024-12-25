@@ -83,7 +83,7 @@ class MetallicDetector(VideoProcessBase):
                     time.sleep(0.1)  # Avoid busy-waiting
                     continue
 
-                roi_frame = self.get_setting_ROI(frame)
+                roi_frame = self.get_setting_ROI(frame.copy())
                 hist_roi_frame = self._histogramize(roi_frame)
                 similarity = self._compare_hist_template(hist_roi_frame)
                 logger.debug(f"Calculated similarity: {similarity:.2f}")
@@ -91,9 +91,9 @@ class MetallicDetector(VideoProcessBase):
                 self.t = Thread(target=self._alert_process, args=(roi_frame, similarity, self.simm_threshold))
                 self.t.start()
                 
-                if self.main_window and not self.live_view(frame, window_name=self.main_window, color=(0,255,255)):
+                if self.main_window and not self.live_view(frame, window_name=self.main_window, color=(0,255,255), draw_roi=True):
                     break
-                if self.process_window and not self.live_view(roi_frame, window_name=self.process_window, color=(0,255,255)):
+                if self.process_window and not self.live_view(roi_frame, window_name=self.process_window, color=(0,255,255), draw_roi=False):
                     break
 
                 # Control frame rate

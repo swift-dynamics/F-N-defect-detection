@@ -70,8 +70,10 @@ class TextExtractor(VideoProcessBase):
                     time.sleep(0.1)  # Avoid busy-waiting
                     continue
 
-                processed_frame = self.get_setting_ROI(frame)
-                processed_frame = self.to_binary(processed_frame)
+                processed_frame = self.get_setting_ROI(frame.copy())
+                processed_frame = self.to_binary(processed_frame, otsu=True)
+                h, w = processed_frame.shape[:2]
+                processed_frame = processed_frame[0:h//2, 0:w//2]  # Crop to ROI
                 output_text = self._text_extractor(processed_frame)
                 logger.debug("Extracted text: %s", output_text)
                 

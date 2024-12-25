@@ -11,7 +11,7 @@ from src.streamer import CameraStreamer
 from src.ocr_exp_date import TextExtractor
 from src.setting_mode import SettingMode
 
-dotenv.load_dotenv(dotenv_path=".env", override=True)
+dotenv.load_dotenv(override=True)
 # dotenv.load_dotenv(dotenv_path='./setting.env', override=True)
 
 # Configuration
