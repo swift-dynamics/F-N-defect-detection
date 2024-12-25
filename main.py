@@ -11,12 +11,26 @@ from src.streamer import CameraStreamer
 from src.ocr_exp_date import TextExtractor
 from src.setting_mode import SettingMode
 
-dotenv.load_dotenv(override=True)
+dotenv.load_dotenv(dotenv_path="./.env", override=True)
+# dotenv.load_dotenv(dotenv_path='./setting.env', override=True)
+
+# Configuration
+CAMERA_SOURCE = os.getenv('CAMERA_SOURCE', "data/Relaxing_highway_traffic.mp4")
+FPS = int(os.getenv('FPS', 30))
+METALLIC_ALERT_DIRECTORY = str(os.getenv("METALLIC_DEFECTED_ALERT_DIRECTORY", "metallic_defected_images"))
+THRESHOLD = float(os.getenv('THRESHOLD', 0.5))
+TEMPLATE_IMAGE = str(os.getenv('TEMPLATE_IMAGE', None))
+OCR_ALERT_DIRECTORY = str(os.getenv('TEXT_DEFECTED_ALERT_DIRECTORY', "data/alerts"))
+TEXT_THRSHOLD = int(os.getenv('TEXT_THRSHOLD', 3))
+SETTING_ENV_PATH = str(os.getenv('SETTING_ENV_PATH', None))
+QSIZE = int(os.getenv('QSIZE', 10))
 
 # Argument Parsing
 parser = argparse.ArgumentParser(description="Main-program")
 parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 parser.add_argument("--setting", action="store_true", help="Enable Setting Mode")
+parser.add_argument("--main_disp", action="store_true", help="Enable Main Display")
+parser.add_argument("--process_disp", action="store_true", help="Enable Process Display")
 args = parser.parse_args()
 
 # Logging Configuration
@@ -26,17 +40,6 @@ logging.basicConfig(
     level=logging.DEBUG if args.debug else logging.INFO
 )
 logger = logging.getLogger(__name__)
-
-# Configuration
-CAMERA_SOURCE = os.getenv('CAMERA_SOURCE', 0)
-FPS = float(os.getenv('FPS', 30))
-THRESHOLD = float(os.getenv('THRESHOLD', 0.5))
-SETTING_ENV_PATH = os.getenv('SETTING_ENV_PATH', None)
-IMAGE_TEMPLATE = os.getenv('IMAGE_TEMPLATE', None)
-MILK_CARTON_QUEUE = Queue(maxsize=10)
-
-SHOW_MAIN: bool = False
-SHOW_PROCESS: bool = True
 
 def broadcaster(input_queue: Queue, output_queues: list[Queue]):
     """
@@ -65,28 +68,56 @@ def start_stream(queue: Queue, camera_source, fps: int = 30):
         logger.error(f"Streamer process failed: {e}", exc_info=True)
         raise
 
-def milk_corton_detector(queue: Queue, threshold: float, fps: int = 30, show_main: bool = True, show_process: bool = True):
-    """
-    Start the metallic detector process.
-    """
+def milk_carton_detector(
+        queue: Queue, 
+        threshold: float, 
+        fps: int,
+        alert_directory: str,
+        template_image,
+        main_window,
+        process_window,
+        alert_info
+    ):
     try:
         logger.info("Starting metallic detector process.")
-        detector = MetallicDetector(queue, threshold, fps, show_main, show_process)
+        detector = MetallicDetector(
+            source=queue, 
+            fps=fps,
+            alert_directory=alert_directory,
+            simm_threshold=threshold,
+            template_image=template_image,
+            main_window=main_window,
+            process_window=process_window,
+            alert_info=alert_info
+        )
         detector.run()
     except Exception as e:
         logger.error(f"Metallic detector process failed: {e}", exc_info=True)
         raise
 
-def exp_date_detector(queue: Queue, fps: int = 30, show_main: bool = True, show_process: bool = True):
-    """
-    Start the expiration date text extraction process.
-    """
+def exp_date_detector(
+        queue: Queue, 
+        threshold: int, 
+        fps: int,
+        alert_directory: str,
+        main_window,
+        process_window,
+        alert_info
+    ):
     try:
-        logger.info("Starting expiration date detection process.")
-        detector = TextExtractor(queue, fps, show_main, show_process)
+        logger.info("Starting exp_date_detector process.")
+        detector = TextExtractor(
+            source=queue, 
+            fps=fps,
+            alert_directory=alert_directory,
+            text_threshold=threshold,
+            main_window=main_window,
+            process_window=process_window,
+            alert_info=alert_info
+        )
         detector.run()
     except Exception as e:
-        logger.error(f"Expiration date detection process failed: {e}", exc_info=True)
+        logger.error(f"exp_date_detector process failed: {e}", exc_info=True)
         raise
 
 def terminate_processes(processes):
@@ -108,7 +139,7 @@ def main():
                 camera_source=CAMERA_SOURCE,
                 fps=FPS,
                 env_path=SETTING_ENV_PATH,
-                image_template=IMAGE_TEMPLATE
+                template_file=TEMPLATE_IMAGE
             )
             setting_mode.run()
         except Exception as e:
@@ -117,17 +148,42 @@ def main():
             sys.exit(0)
 
     # Initialize queues
-    input_queue = Queue(maxsize=10)
-    output_queue_1 = Queue(maxsize=10)
-    output_queue_2 = Queue(maxsize=10)
+    input_queue = Queue(maxsize=QSIZE)
+    output_queue_1 = Queue(maxsize=QSIZE)
+    output_queue_2 = Queue(maxsize=QSIZE)
     output_queues = [output_queue_1, output_queue_2]
 
     # Initialize processes
     processes = [
         Process(target=start_stream, args=(input_queue, CAMERA_SOURCE, FPS), name='start_stream_process'),
         Process(target=broadcaster, args=(input_queue, output_queues), name='broadcaster_process'),
-        Process(target=milk_corton_detector, args=(output_queue_1, THRESHOLD, FPS, SHOW_MAIN, SHOW_PROCESS), name='milk_corton_detector_process'),
-        Process(target=exp_date_detector, args=(output_queue_2, FPS, SHOW_MAIN, SHOW_PROCESS), name='exp_date_detector_process'),
+        Process(
+            target=milk_carton_detector, 
+            args=(
+                output_queue_1, 
+                THRESHOLD, 
+                FPS, 
+                METALLIC_ALERT_DIRECTORY, 
+                TEMPLATE_IMAGE,
+                "Metallic-main-display" if args.main_disp else None, 
+                "Metallic-process-display" if args.process_disp else None, 
+                "metallic-defected"
+            ), 
+            name='milk_corton_detector_process'
+        ),
+        Process(
+            target=exp_date_detector, 
+            args=(
+                output_queue_2, 
+                TEXT_THRSHOLD, 
+                FPS, 
+                OCR_ALERT_DIRECTORY,
+                "OCR-main-display" if args.main_disp else None, 
+                "OCR-process-display" if args.process_disp else None, 
+                "text-defected"
+            ), 
+            name='exp_date_detector_process'
+        ),
     ]
 
     try:

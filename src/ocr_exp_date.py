@@ -1,43 +1,40 @@
-import cv2
 import numpy as np
 import time
 import logging
-from datetime import datetime, timedelta
 import os
-import dotenv
 import torch
-from typing import Optional, Union
+from typing import Union
 from multiprocessing import Queue
 import easyocr
 from threading import Thread
-from setting_mode import ROICoordinates
-from video_process_base import VideoProcessBase
+from .video_process_base import VideoProcessBase
 
 logger = logging.getLogger(__name__)
-        
+
 class TextExtractor(VideoProcessBase):
     def __init__(
         self,
         source: Union[str, int, Queue],
         fps: int = 30, 
-        main_window: str = None, 
-        process_window: str = "process-display",
-        root_dir: str = "text-defected-images"
+        main_window: str = "OCR-main-display", 
+        process_window: str = "OCR-process-display",
+        alert_info: str = "text-defected",
+        alert_directory: str = None,
+        text_threshold: int = 3
     ):
         super().__init__(source, fps, main_window, process_window)
-        self.alert_directory = os.getenv('ALERT_FILE_NAME', 'text_defected_images')
-        self.setup_alert()
+        self.alert_directory = alert_directory
+        self.alert_info = alert_info
+        self.text_threshold = text_threshold
+        self.setup_alert(self.alert_directory, self.alert_info)
         self.setup_ocr()
 
-    def setup_alert(self,) -> None:
-        self.alert_info = 'text-defected'
-        self.alerted = False
-        self.last_alert_time = datetime.min
-        self.alert_debounce = int(os.getenv('ALERT_DEBOUNCE_SECONDS', 10))
-        
-        self.root_dir = os.path.join(os.getcwd(), self.alert_directory)
-        os.makedirs(self.root_dir, exist_ok=True)
-    
+        logger.info("------------------------ TextExtractor initialized ------------------------")
+        logger.info(f"Alert Directory: {self.alert_directory}")
+        logger.info(f"Alert Info: {self.alert_info}")
+        logger.info(f"Text Threshold: {self.text_threshold}")
+        logger.info("---------------------------------------------------------------------------") 
+
     def setup_ocr(self) -> None:
         if not torch.cuda.is_available():
             logger.warning("GPU is not available. Falling back to CPU for EasyOCR.")
@@ -55,31 +52,12 @@ class TextExtractor(VideoProcessBase):
         except Exception as e:
             logger.error(f"Error during text extraction: {e}")
             return None
-    
-    def trigger_alert(self, frame, alert_info: str):
-        """
-        Process the extracted text and take appropriate action.
-        """
-        current_time = datetime.now()
-        if not self.alerted or (current_time - self.last_alert_time > timedelta(seconds=self.alert_debounce)):
-            # Trigger alert
-            self.alerted = True
-            self.last_alert_time = current_time
-
-            # Save defected image
-            timestamp = current_time.strftime("%Y%m%d_%H%M%S_%f")[:-3]
-            defect_image_path = os.path.join(self.root_dir, f"{timestamp}_{alert_info}.jpg")
-            cv2.imwrite(defect_image_path, frame, [cv2.IMWRITE_JPEG_QUALITY, 95])
-            
-            logger.info(f"Text image saved to: {defect_image_path}")
-        else:
-            logger.debug("Alert suppressed due to debounce logic.")
-    
-    def _alert_process(self, frame: np.array, text: list, no_of_text: int = 3):
-        if text and len(text) > no_of_text:
+        
+    def _alert_process(self, frame: np.array, text: list, text_threshold: int):
+        if text and len(text) > text_threshold:
             detected_text = ''.join(text)
             logger.debug(f"Text detected: {detected_text}")
-            self.trigger_alert(frame, self.alert_info)
+            self.trigger_alert(frame)
 
     def run(self):
         try:
@@ -88,7 +66,7 @@ class TextExtractor(VideoProcessBase):
                 
                 frame = self.get_frame()
                 if frame is None:
-                    logger.info("No frame available. Skipping iteration.")
+                    # logger.info("No frame available. Skipping iteration.")
                     time.sleep(0.1)  # Avoid busy-waiting
                     continue
 
@@ -97,12 +75,12 @@ class TextExtractor(VideoProcessBase):
                 output_text = self._text_extractor(processed_frame)
                 logger.debug("Extracted text: %s", output_text)
                 
-                self.t = Thread(target=self._alert_process, args=(frame, output_text, 3))
+                self.t = Thread(target=self._alert_process, args=(frame, output_text, self.text_threshold))
                 self.t.start()
 
-                if not self.live_view(frame, window_name=self.main_window):
+                if self.main_window and not self.live_view(frame, window_name=self.main_window):
                     break
-                if not self.live_view(processed_frame, window_name=self.process_window):
+                if self.process_window and not self.live_view(processed_frame, window_name=self.process_window):
                     break
 
                 # Control frame rate
@@ -117,12 +95,16 @@ class TextExtractor(VideoProcessBase):
 if __name__ == "__main__":
     CAMERA_SOURCE = os.getenv('CAMERA_SOURCE', "data/Relaxing_highway_traffic.mp4")
     FPS = int(os.getenv('FPS', 30))
+    ALERT_DIRECTORY = str(os.getenv('TEXT_DEFECTED_ALERT_DIRECTORY', "data/alerts"))
+    TEXT_THRSHOLD = int(os.getenv('TEXT_THRSHOLD', 3))
 
     text_extractor = TextExtractor(
         source=CAMERA_SOURCE, 
         fps=FPS,
+        alert_directory=ALERT_DIRECTORY,
+        text_threshold=TEXT_THRSHOLD,
         main_window="OCR-main-display",
         process_window="OCR-process-display",
-        root_dir="text-defected-images"
+        alert_info="text-defected",
     )
     text_extractor.run()

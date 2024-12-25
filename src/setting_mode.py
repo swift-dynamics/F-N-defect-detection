@@ -13,26 +13,16 @@ class ROICoordinates:
 
 class SettingMode:
     def __init__(self, camera_source: str | int = 0, fps: int = 30, window_name: str = 'setting_mode', 
-                 env_path: str = None, image_template: str = None) -> None:
-        """Initialize the SettingMode with camera and display parameters.
-
-        Args:
-            camera_source: Camera index or video file path
-            fps: Desired frames per second
-            window_name: Name of the display window
-        
-        Raises:
-            ValueError: If camera cannot be accessed or frame cannot be read
-        """
+                 env_path: str = None, template_file: str = None) -> None:
         logging.debug(f"Initializing SettingMode with camera_source={camera_source}, fps={fps}, window_name={window_name}")
         self.window_name = window_name
         self._setup_camera(camera_source)
         self._setup_display_parameters(fps)
         self.roi: Optional[ROICoordinates] = None
         self.env_path = env_path 
-        self.image_template = image_template
+        self.template_file = template_file
 
-        if env_path is None or image_template is None:
+        if env_path is None or template_file is None:
             logging.warning("Environment path or image template not provided. ROI selection will not be saved.")
             raise ValueError("Environment path or image template not provided.")
         
@@ -80,13 +70,13 @@ class SettingMode:
             # Save ROI coordinates to an env file
             self.__save_roi(self.roi, self.env_path)
             # Save cropped template to a file
-            if self.image_template is not None:
+            if self.template_file is not None:
                 logging.debug("Cropping frame for template")
                 roi_frame = self.frame[
                     self.roi.y:self.roi.y + self.roi.height,
                     self.roi.x:self.roi.x + self.roi.width
                 ]
-                self.__save_image_template(roi_frame, self.image_template, self.env_path)
+                self.__save_template_file(roi_frame, self.template_file, self.env_path)
             
     def __save_roi(self, roi: ROICoordinates, file_path: str) -> None:
         """Save ROI coordinates to an env file."""
@@ -99,11 +89,11 @@ class SettingMode:
             logging.error("Failed to save ROI coordinates")
             logging.warning(f"Width or Height is zero. Please select a valid ROI")
 
-    def __save_image_template(self, image_template: str, file_path: str, env_path: str) -> None:
+    def __save_template_file(self, template_file: str, file_path: str, env_path: str) -> None:
         """Save cropped template to a file."""
         logging.debug(f"Saving image template to file: {file_path}")
-        if image_template.size > 0:
-            cv2.imwrite(file_path, image_template, [cv2.IMWRITE_PNG_COMPRESSION, 9])
+        if template_file.size > 0:
+            cv2.imwrite(file_path, template_file, [cv2.IMWRITE_PNG_COMPRESSION, 9])
             with open(env_path, 'a') as f:
                 f.write(f"# Template Path\nTEMPLATE_PATH={file_path}\n")
             logging.info(f"Image template saved to {file_path}")
@@ -188,7 +178,7 @@ if __name__ == "__main__":
     )
 
     try:
-        setting_mode = SettingMode(camera_source="data/Relaxing_highway_traffic.mp4", env_path="setting.env", image_template="template/large_milk_carton_template.png")
+        setting_mode = SettingMode(camera_source="data/Relaxing_highway_traffic.mp4", env_path="setting.env", template_file="template/large_milk_carton_template.png")
         setting_mode.run()
     except ValueError as e:
         logging.error(f"Failed to initialize SettingMode: {e}")

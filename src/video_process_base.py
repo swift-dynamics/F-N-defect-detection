@@ -1,18 +1,15 @@
+import os
+from multiprocessing import Queue
+import time
+from datetime import datetime, timedelta
+import logging
+from typing import Optional, Union
 import cv2
 import numpy as np
-import time
-import logging
-from datetime import datetime, timedelta
-import os
 import dotenv
-import torch
-from typing import Optional, Union
-from multiprocessing import Queue
-import easyocr
-from threading import Thread
-from setting_mode import ROICoordinates
+from .setting_mode import ROICoordinates
 
-# dotenv.load_dotenv(dotenv_path='./.env',override=True)
+dotenv.load_dotenv(dotenv_path='./.env',override=True)
 dotenv.load_dotenv(dotenv_path='./setting.env', override=True)
 
 # Load environment variables
@@ -20,11 +17,48 @@ ROI_X = int(os.getenv('X', 0))
 ROI_Y = int(os.getenv('Y', 0))
 ROI_W = int(os.getenv('WIDTH', 0))
 ROI_H = int(os.getenv('HEIGHT', 0))
-TEMPLATE_IMAGE = os.getenv('TEMPLATE_PATH', None)
+ALERT_DEBOUNCE_SECONDS = int(os.getenv('ALERT_DEBOUNCE_SECONDS', 10))
 
 logger = logging.getLogger(__name__)
 
-class VideoProcessBase:
+class AlertProcessBase:
+    def __init__(self):
+        logger.info("Alert process base initialized.")
+        logger.info(f"Alert debounce seconds: {ALERT_DEBOUNCE_SECONDS}")
+    
+    def setup_alert(self, alert_directory, alert_info) -> None:
+        if alert_directory:
+            self.alert_info = alert_info
+            self.alerted = False
+            self.last_alert_time = datetime.min
+            self.alert_debounce = ALERT_DEBOUNCE_SECONDS
+            
+            self.root_dir = os.path.join(os.getcwd(), alert_directory)
+            os.makedirs(self.root_dir, exist_ok=True)
+        else:
+            logger.error("Alert directory is not provided.")
+            raise ValueError("Alert directory is not provided.")
+
+    def trigger_alert(self, frame):
+        """
+        Process the extracted text and take appropriate action.
+        """
+        current_time = datetime.now()
+        if not self.alerted or (current_time - self.last_alert_time > timedelta(seconds=self.alert_debounce)):
+            # Trigger alert
+            self.alerted = True
+            self.last_alert_time = current_time
+
+            # Save defected image
+            timestamp = current_time.strftime("%Y%m%d_%H%M%S_%f")[:-3]
+            defect_image_path = os.path.join(self.root_dir, f"{timestamp}_{self.alert_info}.jpg")
+            cv2.imwrite(defect_image_path, frame, [cv2.IMWRITE_JPEG_QUALITY, 95])
+            
+            logger.info(f"Text image saved to: {defect_image_path}")
+        else:
+            logger.debug("Alert suppressed due to debounce logic.")
+            
+class VideoProcessBase(AlertProcessBase):
     def __init__(
         self, 
         source: Union[str, int, Queue],
@@ -32,6 +66,7 @@ class VideoProcessBase:
         main_window = None, # If None, will not show live view
         process_window = None
     ):
+        super().__init__()
         self.fps = fps
         self.frame_delay = 1.0 / fps
         self.exposure = 0  # Initial exposure value (adjust based on camera specifications)
@@ -44,7 +79,6 @@ class VideoProcessBase:
         self.process_window = process_window
         
         if self.main_window:
-            print("Main-window: ", self.main_window)
             cv2.namedWindow(self.main_window, cv2.WINDOW_NORMAL)
         if self.process_window:
             cv2.namedWindow(self.process_window, cv2.WINDOW_NORMAL)
@@ -72,19 +106,22 @@ class VideoProcessBase:
     
     def live_view(self, frame, window_name, draw_roi: bool = True):
         """Visualize the extracted text on the frame."""
-        if draw_roi:
-            cv2.rectangle(frame, (self.roi.x, self.roi.y), (self.roi.x + self.roi.width, self.roi.y + self.roi.height), (0, 255, 0), 2)
-        cv2.imshow(window_name, frame)
-        key = cv2.waitKey(1) & 0xFF
-        if key == ord('q'):
-            logger.info("User exited detection loop via 'q' key")
+        if window_name:
+            if draw_roi:
+                cv2.rectangle(frame, (self.roi.x, self.roi.y), (self.roi.x + self.roi.width, self.roi.y + self.roi.height), (0, 255, 0), 2)
+            cv2.imshow(window_name, frame)
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord('q'):
+                logger.info("User exited detection loop via 'q' key")
+                return False
+            # Control Exposure
+            elif key == ord('w'):
+                self.adjust_exposure(1)  # Increase exposure
+            elif key == ord('s'):
+                self.adjust_exposure(-1)  # Decrease exposure
+            return True
+        else:
             return False
-        # Control Exposure
-        elif key == ord('w'):
-            self.adjust_exposure(1)  # Increase exposure
-        elif key == ord('s'):
-            self.adjust_exposure(-1)  # Decrease exposure
-        return True
     
     def get_setting_ROI(self, frame: np.array):
         return frame[
@@ -92,9 +129,11 @@ class VideoProcessBase:
             self.roi.x:self.roi.x + self.roi.width
         ]
         
-    def to_binary(self, image):
+    def to_binary(self, image, otsu: bool = False):
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        return cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+        if otsu:
+            return cv2.threshold(gray, 75, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+        return cv2.threshold(gray, 75, 255, cv2.THRESH_BINARY)[1] 
     
     def get_frame(self):
         """
