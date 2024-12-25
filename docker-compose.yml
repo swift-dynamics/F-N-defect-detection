@@ -1,35 +1,74 @@
-services:
-  draw-roi:
-    build: .
-    image: milk_box_defect_detection
-    container_name: draw-roi
-    restart: "no"
-    env_file:
-      - .env
-    environment:
-      - FPS=${FPS}
-      - DISPLAY=${DISPLAY}
-    volumes:
-      - .env:/app/.env
-      - /tmp/.X11-unix:/tmp/.X11-unix
-    command: bash -c "python3 main.py --setting"
+volumes:
+  alert-minio-data:
+    name: alert-minio-data
 
-  defect-detection:
+networks:
+  fn-server:
+    driver: bridge
+
+services:  
+  minio:
+    image: minio/minio
+    container_name: fn-minio
+    restart: always
+    networks:
+      - fn-server
+    expose:
+      - "9000"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - alert-minio-data:/data
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+      - MINIO_ADDRESS=${MINIO_ADDRESS}
+      - MINIO_PORT=${MINIO_PORT}
+      - MINIO_STORAGE_USE_HTTPS=${MINIO_STORAGE_USE_HTTPS}
+      - MINIO_CONSOLE_ADDRESS=${MINIO_CONSOLE_ADDRESS}
+      
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    command: server /data --console-address ":9001"
+
+  # Create a bucket named "bucket" if it doesn't exist
+  minio-create-bucket:
+    image: minio/mc
+    container_name: create-bucket
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      bash -c "
+      /usr/bin/mc alias set myminio http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
+      /usr/bin/mc mb myminio/${BUCKET_NAME} || true;
+      exit 0;
+      "
+    # /usr/bin/mc admin policy add myminio mlflow-policy /tmp/mlflow-policy.json;
+    # /usr/bin/mc admin user add myminio mlflow-user ${MINIO_ACCESS_KEY} ${MINIO_SECRET_KEY};
+    # /usr/bin/mc admin policy set myminio mlflow-policy user=mlflow-user;
+  
+  fn-defect-detection:
     build: .
-    image: milk_box_defect_detection
-    container_name: defect-detection
+    image: fn-defect
+    container_name: fn-defect-detection
     restart: "no"
+    networks:
+      - fn-server
     env_file:
       - .env
     environment:
-      - FPS=${FPS}
       - DISPLAY=${DISPLAY}
     volumes:
       - .env:/app/.env
       - /tmp/.X11-unix:/tmp/.X11-unix
     devices:
       - /dev/dri:/dev/dri  # If you are using GPU or need access to devices
-    command: bash -c "python3 main.py --main_disp --process_disp"
+    command: bash -c "python3 main.py --setting && python3 main.py --main_disp --process_disp"
     runtime: nvidia  # If using GPU and NVIDIA runtime
     deploy:
       resources:
@@ -38,13 +77,3 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
-  # gpu-test:
-  #   image: nvidia/cuda:12.6.3-base-ubuntu24.04
-  #   command: nvidia-smi
-  #   deploy:
-  #     resources:
-  #       reservations:
-  #         devices:
-  #           - driver: nvidia
-  #             count: 1
-  #             capabilities: [gpu]

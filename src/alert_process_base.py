@@ -7,12 +7,14 @@ from typing import Optional, Union
 import cv2
 import numpy as np
 import dotenv
+from services import minio_clients
 
 logger = logging.getLogger(__name__)
 
 dotenv.load_dotenv(override=True)
 
 ALERT_DEBOUNCE_SECONDS = int(os.getenv('ALERT_DEBOUNCE_SECONDS', 10))
+BUCKET_NAME = str(os.getenv("BUCKET_NAME"))
 
 class AlertProcessBase:
     def __init__(self):
@@ -46,6 +48,9 @@ class AlertProcessBase:
             timestamp = current_time.strftime("%Y%m%d_%H%M%S_%f")[:-3]
             defect_image_path = os.path.join(self.root_dir, f"{timestamp}_{self.alert_info}.jpg")
             cv2.imwrite(defect_image_path, frame, [cv2.IMWRITE_JPEG_QUALITY, 95])
+            # Upload to minio
+            object_name = f"metallic-defected/{timestamp}_{self.alert_info}.jpg"
+            minio_clients.upload_image(defect_image_path, BUCKET_NAME, object_name)
             
             logger.info(f"Text image saved to: {defect_image_path}")
         else:
