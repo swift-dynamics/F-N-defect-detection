@@ -21,10 +21,12 @@ class MFDEXDInspector(VideoProcessBase, AlertProcessBase):
         process_window: str = "OCR-process-display",
         alert_info: str = "text-defected",
         alert_directory: str = None,
-        text_threshold: int = 3
+        text_threshold: int = 3,
+        save: bool = False,
+        minio: bool = False
     ):
         VideoProcessBase.__init__(self, source, fps, main_window, process_window)
-        AlertProcessBase.__init__(self)
+        AlertProcessBase.__init__(self, save, minio)
         
         self.alert_directory = alert_directory
         self.alert_info = alert_info
@@ -33,8 +35,14 @@ class MFDEXDInspector(VideoProcessBase, AlertProcessBase):
         self.setup_ocr()
 
         logger.info("------------------------ MFDEXDInspector initialized ------------------------")
-        logger.info(f"Alert Directory: {self.alert_directory}")
-        logger.info(f"Alert Info: {self.alert_info}")
+        if save:
+            logger.info(f"Alerts will be saved locally. {self.alert_directory}")
+            logger.debug(f"Alert Info: {self.alert_info}")
+        elif minio:
+            logger.info("Alerts will be saved to MinIO.")
+        else:
+            logger.info("Alerts will not be saved.")
+        
         logger.info(f"Text Threshold: {self.text_threshold}")
         logger.info("---------------------------------------------------------------------------") 
 
@@ -83,9 +91,9 @@ class MFDEXDInspector(VideoProcessBase, AlertProcessBase):
                 self.t = Thread(target=self._alert_process, args=(frame, output_text, self.text_threshold))
                 self.t.start()
 
-                if self.main_window and not self.live_view(frame, window_name=self.main_window, color=(255,0,255)):
+                if self.main_window and not self.live_view(frame, window_name=self.main_window, color=(255,0,255), text=f"No. of alert: {self.alert_count}"):
                     break
-                if self.process_window and not self.live_view(processed_frame, window_name=self.process_window, color=(255,0,255)):
+                if self.process_window and not self.live_view(processed_frame, window_name=self.process_window, color=(255,0,255), text=None):
                     break
 
                 # Control frame rate
