@@ -27,7 +27,6 @@ class VideoProcessBase:
         main_window = None, # If None, will not show live view
         process_window = None
     ):
-        super().__init__()
         self.fps = fps
         self.frame_delay = 1.0 / fps
         self.exposure = 0  # Initial exposure value (adjust based on camera specifications)
@@ -65,11 +64,14 @@ class VideoProcessBase:
             self.cap.set(cv2.CAP_PROP_EXPOSURE, self.exposure)
             logging.info("Exposure adjusted to: %d", self.exposure)
     
-    def live_view(self, frame, window_name, color: tuple, draw_roi: bool = True):
+    def live_view(self, frame, window_name, color: tuple, text: str, draw_roi: bool = True):
         """Visualize the extracted text on the frame."""
         if window_name:
             if draw_roi:
-                cv2.rectangle(frame, (self.roi.x, self.roi.y), (self.roi.x + self.roi.width, self.roi.y + self.roi.height), color, 1)
+                cv2.rectangle(frame, (self.roi.x, self.roi.y), (self.roi.x + self.roi.width, self.roi.y + self.roi.height), color, 2)
+            if text:
+                cv2.putText(frame, text, (self.roi.x, self.roi.y - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
+            
             cv2.imshow(window_name, frame)
             key = cv2.waitKey(1) & 0xFF
             if key == ord('q'):

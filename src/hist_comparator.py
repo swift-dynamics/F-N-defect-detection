@@ -12,20 +12,14 @@ from .alert_process_base import AlertProcessBase
 logger = logging.getLogger(__name__)
 
 class HistogramComparator(VideoProcessBase, AlertProcessBase):
-    def __init__(
-        self,
-        source: Union[str, int, Queue],
-        fps: int = 30, 
-        main_window: str = None, 
-        process_window: str = None,
-        alert_info: str = "text-defected",
-        alert_directory: str = None,
-        simm_threshold: float = 0.5,
-        template_image: str = None
-    ):
+    def __init__(self, source: Union[str, int, Queue], fps: int = 30, 
+                 main_window: str = None, process_window: str = None, 
+                 alert_info: str = "text-defected", alert_directory: str = None,
+                 simm_threshold: float = 0.5, template_image: str = None, 
+                 save: bool = False, minio: bool = False):
         VideoProcessBase.__init__(self, source, fps, main_window, process_window)
-        AlertProcessBase.__init__(self)
-        
+        AlertProcessBase.__init__(self, save, minio)
+            
         self.alert_directory = alert_directory
         self.alert_info = alert_info
         self.simm_threshold = simm_threshold
@@ -33,8 +27,14 @@ class HistogramComparator(VideoProcessBase, AlertProcessBase):
         self._setup_template(template_image)
 
         logger.info("------------------------ HistogramComparator initialized ------------------------")
-        logger.info(f"Alert Directory: {self.alert_directory}")
-        logger.info(f"Alert Info: {self.alert_info}")
+        if save:
+            logger.info(f"Alerts will be saved locally. {self.alert_directory}")
+            logger.debug(f"Alert Info: {self.alert_info}")
+        elif minio:
+            logger.info("Alerts will be saved to MinIO.")
+        else:
+            logger.info("Alerts will not be saved.")
+        
         logger.info(f"Similarity Threshold: {self.simm_threshold}")
         logger.info("------------------------------------------------------------------------------")
 
@@ -75,6 +75,27 @@ class HistogramComparator(VideoProcessBase, AlertProcessBase):
             logger.debug(f"Metallic detected: {similarity:.3f}")
             self.trigger_alert(frame)
 
+    # (Optinal) Future work!
+    # def run_multi_camera(self):
+    #     """Run all camera sources in parallel."""
+    #     try:
+    #         threads = []
+    #         for source in self.sources:
+    #             thread = Thread(target=self.run_camera_source, args=(source,))
+    #             thread.start()
+    #             threads.append(thread)
+
+    #         # Join threads to ensure they all finish
+    #         for thread in threads:
+    #             thread.join()
+
+    #     except KeyboardInterrupt:
+    #         logger.info("Shutting down all camera sources.")
+
+    #     finally:
+    #         logger.info("Cleanup completed.")
+    #         self.cleanup()
+            
     def run(self):
         try:
             while True:
@@ -94,9 +115,9 @@ class HistogramComparator(VideoProcessBase, AlertProcessBase):
                 self.t = Thread(target=self._alert_process, args=(roi_frame, similarity, self.simm_threshold))
                 self.t.start()
                 
-                if self.main_window and not self.live_view(frame, window_name=self.main_window, color=(0,255,255), draw_roi=True):
+                if self.main_window and not self.live_view(frame, window_name=self.main_window, color=(0,255,255), draw_roi=True, text=f"No. of alert: {self.alert_count}"):
                     break
-                if self.process_window and not self.live_view(roi_frame, window_name=self.process_window, color=(0,255,255), draw_roi=False):
+                if self.process_window and not self.live_view(roi_frame, window_name=self.process_window, color=(0,255,255), draw_roi=False, text=None):
                     break
 
                 # Control frame rate
@@ -109,9 +130,9 @@ class HistogramComparator(VideoProcessBase, AlertProcessBase):
             self.cleanup()
 
 if __name__ == "__main__":
-    CAMERA_SOURCE = os.getenv('CAMERA_SOURCE', "data/Relaxing_highway_traffic.mp4")
+    CAMERA_SOURCE = os.getenv('CAMERA_SOURCE')
     FPS = int(os.getenv('FPS', 30))
-    ALERT_DIRECTORY = str(os.getenv("METALLIC_DEFECTED_ALERT_DIRECTORY", "metallic_defected_images"))
+    ALERT_DIRECTORY = str(os.getenv("METALLIC_DEFECTED_ALERT_DIRECTORY"))
     THRESHOLD = float(os.getenv('THRESHOLD', 0.5))
     TEMPLATE_IMAGE = str(os.getenv('TEMPLATE_IMAGE', None))
 
