@@ -120,7 +120,7 @@ def start_stream(queue: Queue, camera_source, fps: int = 30):
     
 if __name__ == "__main__":
     FRAME_QUEUE = Queue(maxsize=10)
-    CAMERA_SOURCE = "data/Relaxing_highway_traffic.mp4"
+    CAMERA_SOURCE = "data/videos/Relaxing_highway_traffic.mp4"
     FPS = 30
     THRESHOLD = 0.75
 

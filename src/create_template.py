@@ -213,7 +213,7 @@ if __name__ == "__main__":
     )
 
     try:
-        setting_mode = CreateTemplate(camera_source="data/Relaxing_highway_traffic.mp4", env_path="setting.env", template_file="template/large_milk_carton_template.png")
+        setting_mode = CreateTemplate(camera_source="data/videos/Relaxing_highway_traffic.mp4", env_path=".env", template_file="data/defected_templates/large_milk_carton_template.png")
         setting_mode.run()
     except ValueError as e:
         logger.error(f"Failed to initialize CreateTemplate: {e}")
