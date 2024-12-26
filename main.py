@@ -26,6 +26,8 @@ parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 parser.add_argument("--setting", action="store_true", help="Enable Template")
 parser.add_argument("--main_disp", action="store_true", help="Enable Main Display")
 parser.add_argument("--process_disp", action="store_true", help="Enable Process Display")
+parser.add_argument("--save", action="store_true", help="Enable Save")
+parser.add_argument("--minio", action="store_true", help="Enable MinIO")
 args = parser.parse_args()
 
 # Logging Configuration
@@ -71,7 +73,9 @@ def metallic_detector(
         template_image,
         main_window,
         process_window,
-        alert_info
+        alert_info,
+        save,
+        minio
     ):
     try:
         logger.info("Starting metallic detector process.")
@@ -83,7 +87,9 @@ def metallic_detector(
             template_image=template_image,
             main_window=main_window,
             process_window=process_window,
-            alert_info=alert_info
+            alert_info=alert_info,
+            save=save,
+            minio=minio
         )
         detector.run()
     except Exception as e:
@@ -97,7 +103,9 @@ def exp_detector(
         alert_directory: str,
         main_window,
         process_window,
-        alert_info
+        alert_info,
+        save,
+        minio
     ):
     try:
         logger.info("Starting exp_detector process.")
@@ -108,7 +116,9 @@ def exp_detector(
             text_threshold=threshold,
             main_window=main_window,
             process_window=process_window,
-            alert_info=alert_info
+            alert_info=alert_info,
+            save=save,
+            minio=minio
         )
         detector.run()
     except Exception as e:
@@ -162,7 +172,9 @@ def main():
                 TEMPLATE_IMAGE,
                 "Metallic-main-display" if args.main_disp else None, 
                 "Metallic-process-display" if args.process_disp else None, 
-                "metallic-defected"
+                "metallic-defected",
+                True if args.save else False,
+                True if args.save else False
             ), 
             name='milk_corton_detector_process'
         ),
@@ -175,7 +187,9 @@ def main():
                 OCR_ALERT_DIRECTORY,
                 "OCR-main-display" if args.main_disp else None, 
                 "OCR-process-display" if args.process_disp else None, 
-                "text-defected"
+                "text-defected",
+                True if args.save else False,
+                True if args.save else False
             ), 
             name='exp_detector_process'
         ),
