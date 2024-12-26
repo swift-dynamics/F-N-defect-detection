@@ -1,1 +1,1 @@
-from .minio_clients import minio_upload, minio_download
+from .minio_client import Minio
