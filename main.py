@@ -6,19 +6,20 @@ import sys
 import signal
 import dotenv
 import argparse
+from typing import List, Optional, Union
 from src import HistogramComparator, CameraStreamer, MFDEXDInspector, CreateTemplate
 
 dotenv.load_dotenv(override=True)
 
 # Configuration
-CAMERA_SOURCE = os.getenv('CAMERA_SOURCE', "data/Relaxing_highway_traffic.mp4")
-FPS = int(os.getenv('FPS', 30))
-METALLIC_ALERT_DIRECTORY = str(os.getenv("METALLIC_DEFECTED_ALERT_DIRECTORY", "metallic_defected_images"))
-THRESHOLD = float(os.getenv('THRESHOLD', 0.5))
-OCR_ALERT_DIRECTORY = str(os.getenv('TEXT_DEFECTED_ALERT_DIRECTORY', "data/alerts"))
-TEXT_THRSHOLD = int(os.getenv('TEXT_THRSHOLD', 3))
-TEMPLATE_IMAGE = str(os.getenv('TEMPLATE_PATH', None))
-QSIZE = int(os.getenv('QSIZE', 10))
+CAMERA_SOURCE: str = os.getenv('CAMERA_SOURCE', "data/Relaxing_highway_traffic.mp4")
+FPS: int = int(os.getenv('FPS', 30))
+METALLIC_ALERT_DIRECTORY: str = str(os.getenv("METALLIC_DEFECTED_ALERT_DIRECTORY", "metallic_defected_images"))
+THRESHOLD: float = float(os.getenv('THRESHOLD', 0.5))
+OCR_ALERT_DIRECTORY: str = str(os.getenv('TEXT_DEFECTED_ALERT_DIRECTORY', "data/alerts"))
+TEXT_THRSHOLD: int = int(os.getenv('TEXT_THRSHOLD', 3))
+TEMPLATE_IMAGE: Optional[str] = os.getenv('TEMPLATE_PATH', None)
+QSIZE: int = int(os.getenv('QSIZE', 10))
 
 # Argument Parsing
 parser = argparse.ArgumentParser(description="Main-program")
@@ -32,15 +33,23 @@ args = parser.parse_args()
 
 # Logging Configuration
 logging.basicConfig(
-    format='%(asctime)s - [%(levelname)s] - %(module)s - %(funcName)s - %(message)s',
+    format="{asctime} - [{levelname:^7}] - {module:<20} - {message}",
     datefmt='%Y-%m-%d %H:%M:%S',
+    style="{",  # Enable `{}` style formatting
     level=logging.DEBUG if args.debug else logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-def broadcaster(input_queue: Queue, output_queues: list[Queue]):
+def broadcaster(input_queue: Queue, output_queues: List[Queue]) -> None: 
     """
     Broadcast frames from the input queue to multiple output queues.
+
+    Args:
+        input_queue (Queue): Input queue to read frames from.
+        output_queues (List[Queue]): List of output queues to write frames to.
+
+    Raises:
+        Exception: If the broadcaster encounters an error.
     """
     while True:
         try:
@@ -49,13 +58,20 @@ def broadcaster(input_queue: Queue, output_queues: list[Queue]):
                 if not queue.full():
                     queue.put(frame)
         except Exception as e:
-            # Handle empty queue or timeout
-            print(f"Broadcaster encountered an issue: {e}")
-            time.sleep(0.01)
+            logger.error(f"Broadcaster encountered an issue: {e}", exc_info=True)
+            raise
 
-def start_stream(queue: Queue, camera_source, fps: int = 30):
+def start_stream(queue: Queue, camera_source: Union[str, int], fps: int = 30) -> None:
     """
-    Start the camera streamer process.
+    Initialize and start the camera streaming process.
+
+    Args:
+        queue (Queue): A multiprocessing queue for storing frames.
+        camera_source (Union[str, int]): The source input for the camera, either a device index or video file path.
+        fps (int, optional): The desired frames per second for the camera stream. Defaults to 30.
+
+    Raises:
+        Exception: If the camera streamer process encounters an error.
     """
     try:
         logger.info("Starting camera stream process.")
@@ -65,18 +81,28 @@ def start_stream(queue: Queue, camera_source, fps: int = 30):
         logger.error(f"Streamer process failed: {e}", exc_info=True)
         raise
 
-def metallic_detector(
-        queue: Queue, 
-        threshold: float, 
-        fps: int,
-        alert_directory: str,
-        template_image,
-        main_window,
-        process_window,
-        alert_info,
-        save,
-        minio
-    ):
+def metallic_detector(queue: Queue, threshold: float, fps: int, alert_directory: str, 
+                      template_image: Optional[str], main_window: Optional[str], 
+                      process_window: Optional[str], alert_info: str, save: bool, 
+                      minio: bool) -> None:
+    """
+    Run the metallic detector process.
+
+    Args:
+        queue (Queue): A multiprocessing queue for storing frames.
+        threshold (float): Similarity threshold for detection.
+        fps (int): Frames per second for processing.
+        alert_directory (str): Directory to save alerts.
+        template_image (Optional[str]): Path to the template image.
+        main_window (Optional[str]): Main display window name.
+        process_window (Optional[str]): Process display window name.
+        alert_info (str): Alert information.
+        save (bool): Whether to save alerts locally.
+        minio (bool): Whether to save alerts to MinIO.
+
+    Raises:
+        Exception: If the metallic detector process encounters an error.
+    """
     try:
         logger.info("Starting metallic detector process.")
         detector = HistogramComparator(
@@ -96,19 +122,28 @@ def metallic_detector(
         logger.error(f"Metallic detector process failed: {e}", exc_info=True)
         raise
 
-def exp_detector(
-        queue: Queue, 
-        threshold: int, 
-        fps: int,
-        alert_directory: str,
-        main_window,
-        process_window,
-        alert_info,
-        save,
-        minio
-    ):
+def exp_detector(queue: Queue, threshold: int, fps: int, alert_directory: str, 
+                 main_window: Optional[str], process_window: Optional[str], 
+                 alert_info: str, save: bool, minio: bool) -> None:
+    """
+    Run the expiration detector process.
+
+    Args:
+        queue (Queue): A multiprocessing queue for storing frames.
+        threshold (int): Text threshold for detection.
+        fps (int): Frames per second for processing.
+        alert_directory (str): Directory to save alerts.
+        main_window (Optional[str]): Main display window name.
+        process_window (Optional[str]): Process display window name.
+        alert_info (str): Alert information.
+        save (bool): Whether to save alerts locally.
+        minio (bool): Whether to save alerts to MinIO.
+
+    Raises:
+        Exception: If the expiration detector process encounters an error.
+    """
     try:
-        logger.info("Starting exp_detector process.")
+        logger.info("Starting expiration detector process.")
         detector = MFDEXDInspector(
             source=queue, 
             fps=fps,
@@ -122,12 +157,15 @@ def exp_detector(
         )
         detector.run()
     except Exception as e:
-        logger.error(f"exp_detector process failed: {e}", exc_info=True)
+        logger.error(f"Expiration detector process failed: {e}", exc_info=True)
         raise
 
-def terminate_processes(processes):
+def terminate_processes(processes: List[Process]) -> None:
     """
     Terminate all running processes gracefully.
+
+    Args:
+        processes (List[Process]): List of processes to terminate.
     """
     for process in processes:
         if process.is_alive():
@@ -135,37 +173,24 @@ def terminate_processes(processes):
             process.join()
             logger.info(f"Terminated {process.name} with exit code {process.exitcode}")
 
-def main():
-    # Run setting mode if specified
-    if args.setting:
-        logger.info("Entering setting mode.")
-        try:
-            template_creator = CreateTemplate(
-                camera_source=CAMERA_SOURCE,
-                fps=FPS,
-                env_path='.env',
-                template_file=TEMPLATE_IMAGE
-            )
-            template_creator.run()
-        except Exception as e:
-            logger.error(f"Setting mode encountered an error: {e}", exc_info=True)
-        finally:
-            sys.exit(0)
+def init_process(input_queue: Queue, output_queues: List[Queue]) -> List[Process]:
+    """
+    Initialize the processes for the metallic and expiration detectors.
 
-    # Initialize queues
-    input_queue = Queue(maxsize=QSIZE)
-    output_queue_1 = Queue(maxsize=QSIZE)
-    output_queue_2 = Queue(maxsize=QSIZE)
-    output_queues = [output_queue_1, output_queue_2]
+    Args:
+        input_queue (Queue): The input queue to read frames from.
+        output_queues (List[Queue]): A list of output queues to write frames to.
 
-    # Initialize processes
+    Returns:
+        List[Process]: List of initialized processes.
+    """
     processes = [
         Process(target=start_stream, args=(input_queue, CAMERA_SOURCE, FPS), name='start_stream_process'),
         Process(target=broadcaster, args=(input_queue, output_queues), name='broadcaster_process'),
         Process(
             target=metallic_detector, 
             args=(
-                output_queue_1, 
+                output_queues[0], 
                 THRESHOLD, 
                 FPS, 
                 METALLIC_ALERT_DIRECTORY, 
@@ -173,38 +198,61 @@ def main():
                 "Metallic-main-display" if args.main_disp else None, 
                 "Metallic-process-display" if args.process_disp else None, 
                 "metallic-defected",
-                True if args.save else False,
-                True if args.save else False
+                args.save,
+                args.minio
             ), 
             name='milk_corton_detector_process'
         ),
         Process(
             target=exp_detector, 
             args=(
-                output_queue_2, 
+                output_queues[1], 
                 TEXT_THRSHOLD, 
                 FPS, 
                 OCR_ALERT_DIRECTORY,
                 "OCR-main-display" if args.main_disp else None, 
                 "OCR-process-display" if args.process_disp else None, 
                 "text-defected",
-                True if args.save else False,
-                True if args.save else False
+                args.save,
+                args.minio
             ), 
             name='exp_detector_process'
         ),
     ]
+    return processes
+
+def main() -> None:
+    """
+    Main function to run the application.
+    """
+    if args.setting:
+        logger.info("Entering setting mode.")
+        try:
+            template_creator = CreateTemplate(
+                camera_source=CAMERA_SOURCE, fps=FPS, window_name='setting_mode',
+                env_path='.env', template_file=TEMPLATE_IMAGE
+            )
+            template_creator.run()
+        except Exception as e:
+            logger.error(f"Setting mode encountered an error: {e}", exc_info=True)
+        finally:
+            sys.exit(0)
+
+    input_queue = Queue(maxsize=QSIZE)
+    output_queue_1 = Queue(maxsize=QSIZE)
+    output_queue_2 = Queue(maxsize=QSIZE)
+    output_queues = [output_queue_1, output_queue_2]
+
+    processes = init_process(input_queue, output_queues)
 
     try:
         for process in processes:
             process.start()
             logger.info(f"Started {process.name}")
 
-        # Handle termination signals
         signal.signal(signal.SIGINT, lambda sig, frame: terminate_processes(processes))
         signal.signal(signal.SIGTERM, lambda sig, frame: terminate_processes(processes))
 
-        # Monitor processes
         while any(process.is_alive() for process in processes):
             time.sleep(1)
 
@@ -218,3 +266,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

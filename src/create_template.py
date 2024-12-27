@@ -1,19 +1,13 @@
-from dataclasses import dataclass
+# from dataclasses import dataclass
 from typing import Optional
 import time
 import cv2
 import logging
 from filelock import FileLock
 from dotenv import dotenv_values
+from data.roi_coordinates import ROICoordinates
 
 logger = logging.getLogger(__name__)
-
-@dataclass
-class ROICoordinates:
-    x: int
-    y: int
-    width: int
-    height: int
 
 class CreateTemplate:
     def __init__(self, camera_source: str | int = 0, fps: int = 30, window_name: str = 'setting_mode', 
