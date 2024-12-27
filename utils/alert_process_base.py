@@ -52,12 +52,13 @@ class AlertProcessBase:
         else:
             logger.warning("Alert directory is not provided.")
 
-    def trigger_alert(self, frame: np.ndarray) -> None:
+    def trigger_alert(self, frame: np.ndarray, info: Optional[str] = None) -> None:
         """
         Process the extracted text and take appropriate action.
 
         Args:
             frame (np.ndarray): The frame from the video stream.
+            info (str | None): Additional information about the alert.
         """
         current_time = datetime.now()
         if not self.alerted and (current_time - self.last_alert_time > self.alert_debounce):
@@ -68,6 +69,7 @@ class AlertProcessBase:
             self.alert_count += 1
 
             logger.info(f"Alert triggered at {current_time.strftime('%Y-%m-%d %H:%M:%S')}")
+            logger.info(f"{info}") if info else None
 
             # Save defected image
             timestamp = current_time.strftime("%Y%m%d_%H%M%S_%f")[:-3]

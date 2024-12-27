@@ -50,7 +50,7 @@ class HistogramComparator(VideoProcessBase, AlertProcessBase):
     def _alert_process(self, frame: np.ndarray, similarity: float):
         if similarity >= self.simm_threshold:
             logger.debug(f"Metallic detected: {similarity:.3f}")
-            self.trigger_alert(frame)
+            self.trigger_alert(frame, info=f"Metallic defected (%): {similarity*100:.3f}")
 
     # (Optinal) Future work!
     # def run_multi_camera(self):
@@ -88,7 +88,7 @@ class HistogramComparator(VideoProcessBase, AlertProcessBase):
 
                 Thread(target=self._alert_process, args=(roi_frame, similarity)).start()
 
-                frame = cv2.putText(frame, f"Similarity: {similarity:.3f}", (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
+                frame = cv2.putText(frame, f"Metallic Defected (%): {similarity*100:.3f}", (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
                 if self.main_window and not self.live_view(frame=frame, window_name=self.main_window, color=(0, 255, 255), 
                                                            draw_roi=True, text=f"No. of alert: {self.alert_count}"):
                     break

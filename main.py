@@ -33,8 +33,9 @@ args = parser.parse_args()
 
 # Logging Configuration
 logging.basicConfig(
-    format='%(asctime)s - [%(levelname)s] - %(module)s - %(funcName)s - %(message)s',
+    format="{asctime} - [{levelname:^7}] - {module:<20} - {message}",
     datefmt='%Y-%m-%d %H:%M:%S',
+    style="{",  # Enable `{}` style formatting
     level=logging.DEBUG if args.debug else logging.INFO
 )
 logger = logging.getLogger(__name__)

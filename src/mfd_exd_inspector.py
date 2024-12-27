@@ -98,7 +98,7 @@ class MFDEXDInspector(VideoProcessBase, AlertProcessBase):
         if text and len(text) > text_threshold:
             detected_text = ''.join(text)
             logger.debug(f"Text detected: {detected_text}")
-            self.trigger_alert(frame)
+            self.trigger_alert(frame, info=f"Defected text: {detected_text}")
 
     def run(self):
         """
