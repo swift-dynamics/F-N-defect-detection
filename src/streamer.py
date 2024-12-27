@@ -80,7 +80,7 @@ class CameraStreamer:
             # Attempt to push the frame into the queue without blocking indefinitely
             try:
                 self.queue.put(frame, block=False)
-                logging.debug("Frame added to queue. Queue size: %d", self.queue.qsize())
+                # logging.debug("Frame added to queue. Queue size: %d", self.queue.qsize())
             except Exception:
                 logging.warning("Queue is full. Dropping frame.")
             

@@ -1,6 +1,7 @@
 import os
 from datetime import datetime, timedelta
 import logging
+from typing import Optional
 import cv2
 import numpy as np
 import dotenv
@@ -31,12 +32,12 @@ class AlertProcessBase:
         logger.info("Alert process base initialized.")
         logger.info(f"Alert debounce seconds: {ALERT_DEBOUNCE_SECONDS}")
 
-    def setup_alert(self, alert_directory: str, alert_info: str) -> None:
+    def setup_alert(self, alert_directory: Optional[str], alert_info: str) -> None:
         """
         Set up the alert process.
 
         Args:
-            alert_directory (str): The directory to save alerts to.
+            alert_directory (str | None): The directory to save alerts to.
             alert_info (str): The type of alert.
         """
         self.alert_count = 0
@@ -59,7 +60,7 @@ class AlertProcessBase:
             frame (np.ndarray): The frame from the video stream.
         """
         current_time = datetime.now()
-        if current_time - self.last_alert_time > self.alert_debounce:
+        if not self.alerted and (current_time - self.last_alert_time > self.alert_debounce):
             # Trigger alert
             self.alerted = True
             self.last_alert_time = current_time
@@ -80,6 +81,3 @@ class AlertProcessBase:
             if self.save_to_minio:
                 object_name = f"{self.alert_info}/{timestamp}.jpg"
                 Minio.upload_image(defect_image_path, BUCKET_NAME, object_name)
-        else:
-            logger.debug("Alert suppressed due to debounce logic.")
-

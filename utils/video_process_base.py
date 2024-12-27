@@ -31,12 +31,14 @@ class VideoProcessBase:
         Initialize the VideoProcessBase class.
 
         Args:
+            _frame_id (int): The current frame ID.
             source (Union[str, int, Queue]): The video source, which can be a file path, 
                 camera index, or a Queue object for streaming video.
             fps (int, optional): Frames per second for the video processing. Defaults to 30.
             main_window (Optional[str], optional): Name of the main display window. Defaults to None.
             process_window (Optional[str], optional): Name of the processed display window. Defaults to None.
         """
+        self._frame_id = 0
         self.fps = fps
         self.frame_delay = 1.0 / fps
         self.exposure = 0  # Initial exposure value (adjust based on camera specifications)
@@ -200,6 +202,7 @@ class VideoProcessBase:
             else:
                 logger.warning("Frame queue is empty.")
                 return None
+        self._frame_id += 1
         return frame
 
     def control_frame_rate(self, start_time: float) -> None:
@@ -215,8 +218,9 @@ class VideoProcessBase:
         """
         elapsed_time = time.time() - start_time
         delay = max(0.025, self.frame_delay - elapsed_time)
+        if self._frame_id % 60 == 0:
+            logger.debug(f"Frame processing time: {elapsed_time:.3f}s, delay: {delay:.3f}s. fps: {1/delay:.2f}")
         time.sleep(delay)
-        logger.debug(f"Frame processing time: {elapsed_time:.3f}s, delay: {delay:.3f}s. fps: {1/delay:.2f}")
 
     def cleanup(self) -> None:
         """

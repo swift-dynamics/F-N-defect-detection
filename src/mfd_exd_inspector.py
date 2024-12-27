@@ -80,7 +80,7 @@ class MFDEXDInspector(VideoProcessBase, AlertProcessBase):
         try:
             results = self.reader.readtext(image, detail=0)  # Extract text, disable detailed output
             output_text = [line.strip() for line in results if line.strip()]
-            logger.debug("Extracted text: %s", output_text)
+            # logger.debug("Extracted text: %s", output_text)
             return output_text if output_text else None
         except Exception as e:
             logger.error(f"Error during text extraction: {e}")
@@ -126,7 +126,7 @@ class MFDEXDInspector(VideoProcessBase, AlertProcessBase):
                 h, w = processed_frame.shape[:2]
                 processed_frame = processed_frame[0:h//2, 0:w//2]  # Crop to ROI
                 output_text = self._text_extractor(processed_frame)
-                logger.debug("Extracted text: %s", output_text)
+                # logger.debug("Extracted text: %s", output_text)
                 
                 self.t = Thread(target=self._alert_process, args=(frame, output_text, self.text_threshold))
                 self.t.start()
