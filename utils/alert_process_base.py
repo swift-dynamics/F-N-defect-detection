@@ -28,10 +28,6 @@ class AlertProcessBase:
         """
         self.save_to_local = save
         self.save_to_minio = minio
-        self.alert_count = 0
-        self.alerted = False
-        self.last_alert_time = datetime.min
-        self.alert_debounce = timedelta(seconds=ALERT_DEBOUNCE_SECONDS)
         logger.info("Alert process base initialized.")
         logger.info(f"Alert debounce seconds: {ALERT_DEBOUNCE_SECONDS}")
 
@@ -43,6 +39,10 @@ class AlertProcessBase:
             alert_directory (str): The directory to save alerts to.
             alert_info (str): The type of alert.
         """
+        self.alert_count = 0
+        self.alerted = False
+        self.last_alert_time = datetime.min
+        self.alert_debounce = timedelta(seconds=ALERT_DEBOUNCE_SECONDS)
         if alert_directory:
             self.alert_info = alert_info
             self.root_dir = os.path.join(os.getcwd(), alert_directory)
