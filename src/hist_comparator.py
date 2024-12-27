@@ -6,8 +6,7 @@ from multiprocessing import Queue
 import logging
 from threading import Thread
 from typing import Union
-from .video_process_base import VideoProcessBase
-from .alert_process_base import AlertProcessBase
+from utils import VideoProcessBase, AlertProcessBase
 
 logger = logging.getLogger(__name__)
 

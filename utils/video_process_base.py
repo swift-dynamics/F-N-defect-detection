@@ -7,7 +7,7 @@ from typing import Optional, Union
 import cv2
 import numpy as np
 import dotenv
-from .create_template import ROICoordinates
+from data.roi_coordinates import ROICoordinates
 
 dotenv.load_dotenv(override=True)
 
