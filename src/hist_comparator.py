@@ -90,7 +90,7 @@ class HistogramComparator(VideoProcessBase, AlertProcessBase):
 
                 frame = cv2.putText(frame, f"Metallic Defected (%): {similarity*100:.3f}", (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
                 if self.main_window and not self.live_view(frame=frame, window_name=self.main_window, color=(0, 255, 255), 
-                                                           draw_roi=True, text=f"No. of alert: {self.alert_count}"):
+                                                           draw_roi=True, text=f"defects: {self.alert_count}"):
                     break
                 if self.process_window and not self.live_view(frame=roi_frame, window_name=self.process_window, color=(0, 255, 255), 
                                                               draw_roi=False, text=None):

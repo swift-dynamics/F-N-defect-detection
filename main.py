@@ -58,10 +58,10 @@ def broadcaster(input_queue: Queue, output_queues: List[Queue]) -> None:
     """
     while True:
         try:
-            frame = input_queue.get(timeout=1)
+            frame = input_queue.get(timeout=5)
             for queue in output_queues:
                 if not queue.full():
-                    queue.put(frame)
+                    queue.put(frame, block=False)
         except Exception as e:
             logger.error(f"Broadcaster encountered an issue: {e}", exc_info=True)
             raise
