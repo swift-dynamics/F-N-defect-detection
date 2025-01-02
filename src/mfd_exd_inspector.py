@@ -133,7 +133,7 @@ class MFDEXDInspector(VideoProcessBase, AlertProcessBase):
 
                 cv2.putText(frame, f"Text: {output_text}", (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,0,255), 2)
                 if self.main_window and not self.live_view(frame=frame, window_name=self.main_window, color=(255,0,255), 
-                                                           draw_roi=True, text=f"No. of alert: {self.alert_count}"):
+                                                           draw_roi=True, text=f"defects: {self.alert_count}"):
                     break
                 if self.process_window and not self.live_view(frame=processed_frame, window_name=self.process_window, color=(255,0,255), 
                                                               draw_roi=False, text=None):

@@ -67,9 +67,9 @@ class VideoProcessBase:
         self.process_window = process_window
 
         if main_window:
-            cv2.namedWindow(main_window, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)
+            cv2.namedWindow(main_window, cv2.WINDOW_AUTOSIZE)
         if process_window:
-            cv2.namedWindow(process_window, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)
+            cv2.namedWindow(process_window, cv2.WINDOW_AUTOSIZE)
 
     def setup_video_capture(self, source: Union[str, int, Queue]) -> None:
         """
@@ -209,7 +209,7 @@ class VideoProcessBase:
                     logger.error("Failed to read frame from queue")
                     return None
             else:
-                logger.warning("Frame queue is empty.")
+                # logger.warning("Frame queue is empty.")
                 return None
         self._frame_id += 1
         return frame

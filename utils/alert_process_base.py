@@ -42,7 +42,7 @@ class AlertProcessBase:
         """
         self.alert_count = 0
         self.alerted = False
-        self.last_alert_time = datetime.min
+        self.last_alert_time = datetime.min # Initialize to a non-zero value
         self.alert_debounce = timedelta(seconds=ALERT_DEBOUNCE_SECONDS)
         if alert_directory:
             self.alert_info = alert_info
@@ -61,7 +61,7 @@ class AlertProcessBase:
             info (str | None): Additional information about the alert.
         """
         current_time = datetime.now()
-        if not self.alerted and (current_time - self.last_alert_time > self.alert_debounce):
+        if current_time - self.last_alert_time > self.alert_debounce:
             # Trigger alert
             self.alerted = True
             self.last_alert_time = current_time
