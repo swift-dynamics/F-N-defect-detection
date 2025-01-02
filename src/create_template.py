@@ -1,28 +1,30 @@
 # from dataclasses import dataclass
 from typing import Optional
 import time
+import json
 import cv2
 import logging
-from filelock import FileLock
-from dotenv import dotenv_values
+# from filelock import FileLock
+# from dotenv import dotenv_values
 from data.roi_coordinates import ROICoordinates
 
 logger = logging.getLogger(__name__)
 
 class CreateTemplate:
-    def __init__(self, camera_source: str | int = 0, fps: int = 30, window_name: str = 'setting_mode', 
-                 env_path: str = None, template_file: str = None) -> None:
+    def __init__(self, camera_source: str | int = 0, fps: int = 30, 
+                 window_name: str = 'setting_mode', template_json_config_path: str = None, template_image_path: str = None
+                 ) -> None:
         logger.debug(f"Initializing CreateTemplate with camera_source={camera_source}, fps={fps}, window_name={window_name}")
         self.window_name = window_name
         self._setup_camera(camera_source)
         self._setup_display_parameters(fps)
         self.roi: Optional[ROICoordinates] = None
-        self.env_path = env_path 
-        self.template_file = template_file
+        self.template_json_config_path = template_json_config_path
+        self.template_image_path = template_image_path
 
-        if env_path is None or template_file is None:
-            logger.warning("Environment path or image template not provided. ROI selection will not be saved.")
-            raise ValueError("Environment path or image template not provided.")
+        if self.template_image_path is None or self.template_json_config_path is None:
+            logger.error("Image template path or json config path is not provided. Cannot proceed.")
+            raise ValueError("Image template path or json config path is not provided. Cannot proceed.")
         
     def _setup_camera(self, camera_source: str | int) -> None:
         """Initialize and validate camera connection."""
@@ -65,69 +67,47 @@ class CreateTemplate:
             logger.debug(f"Mouse click at coordinates: x={x}, y={y}")
             self.setting_up()
             logger.info(f"ROI selected: {self.roi}")
-            # Save ROI coordinates to an env file
-            self.__save_roi(self.roi, self.env_path)
+            
             # Save cropped template to a file
-            if self.template_file is not None:
-                logger.debug("Cropping frame for template")
+            if self.template_image_path is not None:
+                # Save ROI coordinates to an env file
+                self.__save_roi(self.roi)
+                # Crop frame for template
                 roi_frame = self.frame[
                     self.roi.y:self.roi.y + self.roi.height,
                     self.roi.x:self.roi.x + self.roi.width
                 ]
-                self.__save_template_file(roi_frame, self.template_file, self.env_path)
+                # Save cropped template to a file
+                self.__save_template_file(roi_frame)
             
-    def __save_roi(self, roi: ROICoordinates, file_path: str) -> None:
+    def __save_roi(self, roi: ROICoordinates) -> None:
         """Save ROI coordinates to an env file, preserving static values, using FileLock."""
-        logger.debug(f"Saving ROI coordinates to file: {file_path}")
+        logger.debug(f"Saving ROI coordinates to file: {self.template_json_config_path}")
         
-        lock_path = f"{file_path}.lock"  # Create a lock file path
-        lock = FileLock(lock_path)  # Create a FileLock instance
-
-        with lock:  # Acquire the lock
-            # Load existing static values from the .env file
-            existing_values = dotenv_values(file_path)
-            
-            # Update ROI values
-            existing_values.update({
-                "X": roi.x,
-                "Y": roi.y,
-                "WIDTH": roi.width,
-                "HEIGHT": roi.height,
-            })
-
-            # Write back all values to the .env file
-            with open(file_path, 'w') as f:
-                for key, value in existing_values.items():
-                    f.write(f"{key}={value}\n")
-
-            logger.info(f"ROI coordinates merged and saved to {file_path}")
+        # Write drawn ROI coordinates to the json file
+        with open(self.template_json_config_path, 'w') as f:
+            roi_dict = {
+                "roi": {
+                    "X": roi.x,
+                    "Y": roi.y,
+                    "WIDTH": roi.width,
+                    "HEIGHT": roi.height,
+                }
+            }
+            json.dump(roi_dict, f)
+        
+        logger.info(f"ROI coordinates saved to {self.template_json_config_path}")
     
-    def __save_template_file(self, template_file: str, file_path: str, env_path: str) -> None:
+    def __save_template_file(self, image: str) -> None:
         """Save cropped template to a file, preserving static values, using FileLock."""
-        logger.debug(f"Saving image template to file: {file_path}")
+        logger.debug(f"Saving image template to file: {self.template_image_path}")
         
-        lock_path = f"{env_path}.lock"  # Create a lock file path for the environment file
-        lock = FileLock(lock_path)  # Create a FileLock instance
-
-        with lock:  # Acquire the lock
-            # Load existing static values from the .env file
-            existing_values = dotenv_values(env_path)
-            
-            # Add the template path
-            existing_values["TEMPLATE_PATH"] = file_path
-
-            # Save the cropped template to the specified file
-            if template_file.size > 0:
-                cv2.imwrite(file_path, template_file, [cv2.IMWRITE_PNG_COMPRESSION, 9])
-                
-                # Write back all values to the .env file
-                with open(env_path, 'w') as f:
-                    for key, value in existing_values.items():
-                        f.write(f"{key}={value}\n")
-                
-                logger.info(f"Image template saved to {file_path}")
-            else:
-                logger.error("Failed to save image template.")
+        # Save the cropped template to the specified file
+        try:
+            cv2.imwrite(self.template_image_path, image, [cv2.IMWRITE_PNG_COMPRESSION, 9])            
+            logger.info(f"Image template saved to {self.template_image_path}")
+        except Exception as e:
+            logger.error(f"Failed to save image template. \nError: {e}")
 
     def _draw_roi(self, window_name='cropped_frame') -> None:
         """Draw ROI rectangle on frame if ROI is set."""

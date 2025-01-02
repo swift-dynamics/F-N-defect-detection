@@ -1,5 +1,6 @@
 import os
 from multiprocessing import Queue
+import json
 import time
 import logging
 from typing import Optional, Union
@@ -8,13 +9,21 @@ import numpy as np
 import dotenv
 from data import ROICoordinates
 
-dotenv.load_dotenv(override=True)
+# dotenv.load_dotenv(override=True)
 
 # Load environment variables
-ROI_X = int(os.getenv('X', 0))
-ROI_Y = int(os.getenv('Y', 0))
-ROI_W = int(os.getenv('WIDTH', 0))
-ROI_H = int(os.getenv('HEIGHT', 0))
+with open('data/roi_coordinates.json', 'r') as f:
+    data = json.load(f)
+    ROI_X = data['roi']['X']
+    ROI_Y = data['roi']['Y']
+    ROI_W = data['roi']['WIDTH']
+    ROI_H = data['roi']['HEIGHT']
+
+
+# ROI_X = int(os.getenv('X', 0))
+# ROI_Y = int(os.getenv('Y', 0))
+# ROI_W = int(os.getenv('WIDTH', 0))
+# ROI_H = int(os.getenv('HEIGHT', 0))
 
 logger = logging.getLogger(__name__)
 
