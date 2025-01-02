@@ -12,7 +12,7 @@ from src import HistogramComparator, CameraStreamer, MFDEXDInspector, CreateTemp
 dotenv.load_dotenv(override=True)
 
 # Configuration
-CAMERA_SOURCE: str = os.getenv('CAMERA_SOURCE', "data/Relaxing_highway_traffic.mp4")
+CAMERA_SOURCE: str | int = int(os.getenv('CAMERA_SOURCE')) if os.getenv('CAMERA_SOURCE').isdigit() else os.getenv('CAMERA_SOURCE')
 FPS: int = int(os.getenv('FPS', 30))
 METALLIC_ALERT_DIRECTORY: str = str(os.getenv("METALLIC_DEFECTED_ALERT_DIRECTORY", "metallic_defected_images"))
 THRESHOLD: float = float(os.getenv('THRESHOLD', 0.5))
