@@ -11,15 +11,20 @@ from src import HistogramComparator, CameraStreamer, MFDEXDInspector, CreateTemp
 
 dotenv.load_dotenv(override=True)
 
-# Configuration
+# Template
+TEMPLATE_IMAGE: str = os.getenv('TEMPLATE_IMAGE_PATH')
+JSON_CONFIG_PATH: str = os.getenv('JSON_CONFIG_PATH')
+# Stream
 CAMERA_SOURCE: str | int = int(os.getenv('CAMERA_SOURCE')) if os.getenv('CAMERA_SOURCE').isdigit() else os.getenv('CAMERA_SOURCE')
 FPS: int = int(os.getenv('FPS', 30))
+QSIZE: int = int(os.getenv('QSIZE', 10))
+# Metallica Detector
 METALLIC_ALERT_DIRECTORY: str = str(os.getenv("METALLIC_DEFECTED_ALERT_DIRECTORY", "metallic_defected_images"))
 THRESHOLD: float = float(os.getenv('THRESHOLD', 0.5))
+# Expiration Detector
 OCR_ALERT_DIRECTORY: str = str(os.getenv('TEXT_DEFECTED_ALERT_DIRECTORY', "data/alerts"))
 TEXT_THRSHOLD: int = int(os.getenv('TEXT_THRSHOLD', 3))
-TEMPLATE_IMAGE: Optional[str] = os.getenv('TEMPLATE_PATH', None)
-QSIZE: int = int(os.getenv('QSIZE', 10))
+
 
 # Argument Parsing
 parser = argparse.ArgumentParser(description="Main-program")
@@ -230,7 +235,7 @@ def main() -> None:
         try:
             template_creator = CreateTemplate(
                 camera_source=CAMERA_SOURCE, fps=FPS, window_name='setting_mode',
-                env_path='.env', template_file=TEMPLATE_IMAGE
+                template_json_config_path=JSON_CONFIG_PATH, template_image_path=TEMPLATE_IMAGE
             )
             template_creator.run()
         except Exception as e:
